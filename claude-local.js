@@ -87,20 +87,9 @@
 
   window.claude = {
     complete: function (params) {
-      // Önce gerçek AI (sunucu fonksiyonu /api/claude). Başarısızsa yerel ayrıştırıcı.
-      return fetch("/api/claude", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(params)
-      }).then(function (r) {
-        return r.json().then(function (d) {
-          if (!r.ok || d.error) throw new Error(d && d.error ? d.error : "AI hatası");
-          return String(d.text || "");
-        });
-      }).catch(function (err) {
-        // AI yoksa/çevrimdışıysa: yapıştırılan metni yerelde ayıkla
-        console.warn("[claude] AI kullanılamadı, yerel ayrıştırıcıya düşülüyor:", err && err.message);
-        return localComplete(params);
+      // Ücretsiz yerel ayrıştırıcı: yapıştırılan metni tarih–işyeri–tutar olarak ayıklar.
+      return new Promise(function (resolve) {
+        setTimeout(function () { resolve(localComplete(params)); }, 120);
       });
     }
   };

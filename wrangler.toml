@@ -1,9 +1,0 @@
-name = "butcetakipprogrami"
-main = "_worker.js"
-compatibility_date = "2025-06-01"
-
-# Statik dosyalar (index.html, support.js, ikonlar…) bu dizinden sunulur;
-# _worker.js yalnızca /api/claude'u işler, gerisini ASSETS'e geçirir.
-[assets]
-directory = "."
-binding = "ASSETS"
