@@ -970,7 +970,22 @@ class Component extends DCLogic {
         self.setState({ priceStatus: { state: 'ok', text: 'Otomatik · ' + String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0') + ' · ' + src.name } });
       }).catch(() => tryNext(i + 1));
     };
-    tryNext(0);
+    // Önce altinkaynak (GitHub Actions ile günde birkaç kez güncellenen, aynı origin JSON — CORS yok)
+    fetch('gold-prices.json?_=' + Date.now(), { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : Promise.reject(new Error('yok')))
+      .then(j => {
+        if (self._dead) return;
+        if (!j || !j.prices || !Object.keys(j.prices).length) throw new Error('boş');
+        const x = JSON.parse(JSON.stringify(self.state.data));
+        Object.keys(j.prices).forEach(k => { if (x.gold.prices[k] !== undefined && +j.prices[k]) x.gold.prices[k] = +j.prices[k]; });
+        if (+j.usd) { const f = x.fx.find(z => z.code === 'USD'); if (f) f.rate = +j.usd; }
+        if (+j.eur) { const f = x.fx.find(z => z.code === 'EUR'); if (f) f.rate = +j.eur; }
+        x.gold.updated = j.updated || new Date().toISOString();
+        x.gold.source = 'altinkaynak';
+        self.save(x);
+        self.setState({ priceStatus: { state: 'ok', text: 'altinkaynak · ' + (j.dateLabel || '') } });
+      })
+      .catch(() => { if (!self._dead) tryNext(0); });
   }
 
   // ---- derived helpers ----
