@@ -12,9 +12,8 @@ jobs:
       - name: Kodu al
         uses: actions/checkout@v4
 
-      # Subdomain'in gerçek belge kökü (hPanel'den doğrulandı):
-      # /home/u366184457/domains/caspianmotorsport.com/public_html/butce
-      # Ana FTP hesabı ev dizininden (~) bağlandığı için yol buna göre verilir.
+      # FTP hesabı public_html'e kilitli. Buraya (butce/) yazıp nereye
+      # düştüğünü işaretli dosyayla test ediyoruz.
       - name: FTP ile Hostinger'a yükle
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
@@ -22,7 +21,7 @@ jobs:
           username: ${{ secrets.FTP_USER }}
           password: ${{ secrets.FTP_PASS }}
           protocol: ftps
-          server-dir: domains/caspianmotorsport.com/public_html/butce/
+          server-dir: butce/
           exclude: |
             **/.git*
             **/.git*/**
