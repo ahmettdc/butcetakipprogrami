@@ -1,6 +1,6 @@
-/* Cloudflare Pages Function — /api/claude
-   Tarayıcıdan gelen isteği, gizli ANTHROPIC_API_KEY ile Anthropic Messages API'sine iletir.
-   Anahtar yalnızca sunucuda (Cloudflare secret) tutulur; tarayıcıya gitmez. */
+/* Cloudflare Worker (static assets) giriş noktası.
+   /api/claude isteklerini gizli ANTHROPIC_API_KEY ile Anthropic'e iletir;
+   diğer tüm istekleri statik dosyalara (env.ASSETS) yönlendirir. */
 
 const ALLOWED_MODELS = {
   "claude-haiku-4-5": "claude-haiku-4-5-20251001",
@@ -15,12 +15,7 @@ function json(obj, status) {
   });
 }
 
-export async function onRequestGet({ env }) {
-  // basit durum kontrolü (anahtar ayarlı mı)
-  return json({ configured: !!env.ANTHROPIC_API_KEY });
-}
-
-export async function onRequestPost({ request, env }) {
+async function handleClaude(request, env) {
   const key = env.ANTHROPIC_API_KEY;
   if (!key) return json({ error: "AI bağlı değil: ANTHROPIC_API_KEY ayarlı değil." }, 503);
 
@@ -64,3 +59,17 @@ export async function onRequestPost({ request, env }) {
     .join("");
   return json({ text: text });
 }
+
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+    if (url.pathname === "/api/claude") {
+      if (request.method === "POST") return handleClaude(request, env);
+      if (request.method === "GET") return json({ configured: !!env.ANTHROPIC_API_KEY });
+      return json({ error: "Yöntem desteklenmiyor." }, 405);
+    }
+    // diğer her şey statik dosya
+    if (env.ASSETS && env.ASSETS.fetch) return env.ASSETS.fetch(request);
+    return new Response("Not found", { status: 404 });
+  }
+};
