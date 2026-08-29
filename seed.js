@@ -127,21 +127,24 @@ window.SEED_DATA = {
 
   // Birikim / Altın portföyü
   gold: {
-    // Alım defteri
-    purchases: [
-      { date: "2026-08-19", type: "Külçe Altın", amount: 10, cost: 68000 },
-      { date: "2026-08-20", type: "Külçe Altın", amount: 15, cost: 103500 }
-    ],
-    // Güncel birim fiyatlar (₺) — kullanıcı elle günceller
+    // Portföy (mevcut holdingler) — Excel özet tablosundan. Miktar ve maliyet elle düzenlenebilir.
+    portfolio: {
+      "Çeyrek": { amount: 12, cost: 0 },
+      "Yarım": { amount: 1, cost: 0 },
+      "Ata / Tam": { amount: 0, cost: 0 },
+      "22 Ayar Gram": { amount: 3, cost: 0 },
+      "24 Ayar Gram": { amount: 4, cost: 0 },
+      "Külçe Altın": { amount: 175, cost: 171500 }
+    },
+    // Güncel birim fiyatlar (₺) — otomatik çekilir, elle de değiştirilebilir
     prices: {
       "Çeyrek": 0, "Yarım": 0, "Ata / Tam": 0,
       "22 Ayar Gram": 0, "24 Ayar Gram": 0, "Külçe Altın": 0
     },
-    // Aylık nakit akışı (para birikimi / altına harcanan)
-    monthlyFlow: {
-      "2026-06": { saved: 0, gold: 0 },
-      "2026-07": { saved: 0, gold: 0 },
-      "2026-08": { saved: 173000, gold: 171500 }
-    }
+    // Alım defteri (kayıt/geçmiş) — yeni alım eklendiğinde portföye eklenir
+    purchases: [
+      { date: "2026-08-19", type: "Külçe Altın", amount: 10, cost: 68000 },
+      { date: "2026-08-20", type: "Külçe Altın", amount: 15, cost: 103500 }
+    ]
   }
 };

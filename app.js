@@ -383,45 +383,69 @@
   }
 
   // === Render: BİRİKİM ===
+  var GOLD_TYPES = ["Çeyrek", "Yarım", "Ata / Tam", "22 Ayar Gram", "24 Ayar Gram", "Külçe Altın"];
+  function ensurePortfolio() {
+    var g = state.gold;
+    if (!g.portfolio) g.portfolio = {};
+    GOLD_TYPES.forEach(function (t) {
+      if (!g.portfolio[t]) g.portfolio[t] = { amount: 0, cost: 0 };
+      if (!(t in g.prices)) g.prices[t] = 0;
+    });
+  }
   function renderGold() {
     var g = state.gold;
-    // Portföy: türe göre grupla
-    var byType = {};
-    g.purchases.forEach(function (p) {
-      if (!byType[p.type]) byType[p.type] = { amount: 0, cost: 0 };
-      byType[p.type].amount += +p.amount || 0;
-      byType[p.type].cost += +p.cost || 0;
-    });
-    var types = Object.keys(byType);
-    // prices'ta olmayan türleri ekle
-    types.forEach(function (t) { if (!(t in g.prices)) g.prices[t] = 0; });
+    ensurePortfolio();
 
     var tb = $("#portfolioTable tbody"); tb.innerHTML = "";
     var totCost = 0, totValue = 0;
-    types.forEach(function (t) {
-      var d = byType[t];
+    GOLD_TYPES.forEach(function (t) {
+      var d = g.portfolio[t];
       var price = +g.prices[t] || 0;
-      var value = d.amount * price;
-      totCost += d.cost; totValue += value;
+      var value = (+d.amount || 0) * price;
+      totCost += +d.cost || 0; totValue += value;
       var tr = el("tr");
+      // miktar (düzenlenebilir)
+      var amtInp = mkNumInput(d.amount || 0); amtInp.style.maxWidth = "70px";
+      amtInp.addEventListener("input", function () { d.amount = num(amtInp.value); save(); renderGoldTotals(); tr.querySelector(".pf-value").textContent = money0((+d.amount || 0) * (+g.prices[t] || 0)); });
+      // maliyet (düzenlenebilir)
+      var costInp = mkNumInput(d.cost || 0); costInp.style.maxWidth = "100px";
+      costInp.addEventListener("input", function () { d.cost = num(costInp.value); save(); renderGoldTotals(); });
+      // güncel fiyat (otomatik + düzenlenebilir)
       var priceInp = mkNumInput(price); priceInp.style.maxWidth = "90px";
-      priceInp.addEventListener("input", function () { g.prices[t] = num(priceInp.value); save(); renderGold(); });
+      priceInp.addEventListener("input", function () { g.prices[t] = num(priceInp.value); save(); renderGoldTotals(); tr.querySelector(".pf-value").textContent = money0((+d.amount || 0) * (+g.prices[t] || 0)); });
       tr.appendChild(el("td", null, t));
-      tr.appendChild(el("td", null, String(d.amount)));
-      tr.appendChild(el("td", null, money0(d.cost)));
+      var tdA = el("td"); tdA.appendChild(amtInp); tr.appendChild(tdA);
+      var tdC = el("td"); tdC.appendChild(costInp); tr.appendChild(tdC);
       var tdP = el("td"); tdP.appendChild(priceInp); tr.appendChild(tdP);
-      tr.appendChild(el("td", null, money0(value)));
+      var tdV = el("td", "pf-value", money0(value)); tr.appendChild(tdV);
       tb.appendChild(tr);
     });
-    if (!types.length) { var tr = el("tr"); tr.innerHTML = '<td colspan="5" class="chart-empty">Portföy boş.</td>'; tb.appendChild(tr); }
 
+    // Alım defteri
+    renderGoldLedger();
+    renderGoldTotals();
+
+    var info = $("#priceInfo");
+    if (info) {
+      if (g.priceUpdate) info.textContent = "Güncel fiyatlar otomatik çekilir (kaynak: truncgil, satış). Son güncelleme: " + g.priceUpdate;
+      else info.textContent = "Güncel fiyatlar otomatik çekilir (kaynak: truncgil, satış fiyatı). Miktar, maliyet ve fiyatı elle düzenleyebilirsiniz.";
+    }
+  }
+  function renderGoldTotals() {
+    var g = state.gold, totCost = 0, totValue = 0;
+    GOLD_TYPES.forEach(function (t) {
+      var d = g.portfolio[t]; if (!d) return;
+      totCost += +d.cost || 0;
+      totValue += (+d.amount || 0) * (+g.prices[t] || 0);
+    });
     $("#gMaliyet").textContent = money0(totCost);
     $("#gDeger").textContent = money0(totValue);
     var kar = totValue - totCost;
     var kEl = $("#gKar"); kEl.textContent = (kar >= 0 ? "+" : "") + money0(kar);
     kEl.className = "card-value " + (kar >= 0 ? "pos" : "neg");
-
-    // Alım defteri
+  }
+  function renderGoldLedger() {
+    var g = state.gold;
     var list = $("#goldList"); list.innerHTML = "";
     var sorted = g.purchases.map(function (p, i) { return { p: p, i: i }; }).sort(function (a, b) { return a.p.date < b.p.date ? 1 : -1; });
     sorted.forEach(function (o) {
@@ -430,16 +454,16 @@
       var unit = p.amount ? (p.cost / p.amount) : 0;
       li.innerHTML = '<div class="tx-icon">🥇</div><div class="tx-info"><div class="tx-desc"></div><div class="tx-meta">' + p.amount + ' adet/gr • birim ' + money0(unit) + ' • ' + p.date + '</div></div><div class="tx-amount">' + money0(p.cost) + '</div><button class="mini-del" title="Sil">✕</button>';
       li.querySelector(".tx-desc").textContent = p.type;
-      li.querySelector(".mini-del").addEventListener("click", function () { if (confirm("Bu alımı silmek istiyor musunuz?")) { g.purchases.splice(o.i, 1); save(); renderGold(); } });
+      li.querySelector(".mini-del").addEventListener("click", function () {
+        if (!confirm("Bu alımı silmek istiyor musunuz? Portföyden de düşülecek.")) return;
+        // portföyden düş
+        var d = g.portfolio[p.type];
+        if (d) { d.amount = Math.round(((+d.amount || 0) - (+p.amount || 0)) * 1000) / 1000; d.cost = Math.round(((+d.cost || 0) - (+p.cost || 0)) * 100) / 100; }
+        g.purchases.splice(o.i, 1); save(); renderGold();
+      });
       list.appendChild(li);
     });
     $("#goldEmpty").hidden = g.purchases.length !== 0;
-
-    var info = $("#priceInfo");
-    if (info) {
-      if (g.priceUpdate) info.textContent = "Güncel fiyatlar otomatik çekilir (kaynak: truncgil, satış). Son güncelleme: " + g.priceUpdate;
-      else info.textContent = "Güncel fiyatlar otomatik çekilir (kaynak: truncgil, satış fiyatı). Dilerseniz elle de değiştirebilirsiniz.";
-    }
   }
 
   // === Modal ===
@@ -487,7 +511,8 @@
     });
   }
   function addGold() {
-    var typeOpts = Object.keys(state.gold.prices).map(function (t) { return { value: t, label: t }; });
+    ensurePortfolio();
+    var typeOpts = GOLD_TYPES.map(function (t) { return { value: t, label: t }; });
     openModal("Yeni Altın Alımı", [
       { key: "date", label: "Tarih", type: "date", value: new Date().toISOString().slice(0, 10) },
       { key: "type", label: "Altın Türü", type: "select", options: typeOpts },
@@ -497,6 +522,10 @@
       var amount = num(v.amount), cost = num(v.cost);
       if (!amount || !cost) { alert("Lütfen miktar ve tutarı girin."); return false; }
       state.gold.purchases.push({ date: v.date, type: v.type, amount: amount, cost: cost });
+      // portföye ekle
+      var d = state.gold.portfolio[v.type] || (state.gold.portfolio[v.type] = { amount: 0, cost: 0 });
+      d.amount = Math.round(((+d.amount || 0) + amount) * 1000) / 1000;
+      d.cost = Math.round(((+d.cost || 0) + cost) * 100) / 100;
       save(); renderGold();
     });
   }
@@ -571,6 +600,8 @@
     state = load();
     // seed sonrası olası eksikleri tamamla
     if (!state.gold) state.gold = deepCopy(window.SEED_DATA.gold);
+    // eski sürümden geçiş: portföy yoksa altın verisini yeni seed'e taşı
+    if (!state.gold.portfolio) { state.gold = deepCopy(window.SEED_DATA.gold); save(); }
     selectedMonth = state.months[todayMonth()] ? todayMonth() : monthKeys()[monthKeys().length - 1];
 
     var savedTheme = localStorage.getItem(THEME_KEY);

@@ -1,5 +1,5 @@
 /* Basit çevrimdışı önbellek */
-var CACHE = "butce-takip-v3";
+var CACHE = "butce-takip-v4";
 var ASSETS = [
   "./",
   "./index.html",
