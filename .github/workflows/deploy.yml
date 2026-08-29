@@ -12,15 +12,18 @@ jobs:
       - name: Kodu al
         uses: actions/checkout@v4
 
-      # butce klasörüne yükle
-      - name: FTP - butce
+      # NOT: FTP hesabı zaten public_html içine kök olarak bağlanıyor,
+      # bu yüzden yol "public_html/" olmadan, doğrudan klasör adıyla verilir.
+
+      # butcetakip klasörüne yükle (subdomain'in okuduğu klasör)
+      - name: FTP - butcetakip
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_HOST }}
           username: ${{ secrets.FTP_USER }}
           password: ${{ secrets.FTP_PASS }}
           protocol: ftps
-          server-dir: public_html/butce/
+          server-dir: butcetakip/
           exclude: |
             **/.git*
             **/.git*/**
@@ -29,15 +32,15 @@ jobs:
             .gitignore
             icons/gen-icons.js
 
-      # butcetakip klasörüne de yükle (subdomain'in okuduğu klasör)
-      - name: FTP - butcetakip
+      # butce klasörüne de yükle (subdomain oraya bağlıysa da güncel olsun)
+      - name: FTP - butce
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_HOST }}
           username: ${{ secrets.FTP_USER }}
           password: ${{ secrets.FTP_PASS }}
           protocol: ftps
-          server-dir: public_html/butcetakip/
+          server-dir: butce/
           exclude: |
             **/.git*
             **/.git*/**
