@@ -807,12 +807,6 @@ function seed() {
       { id: 'egitim', name: 'Eğitim', icon: '🎓', limit: 19040, subs: ['KYK Ödemesi', 'Dershane'] },
       { id: 'arac', name: 'Araç', icon: '🚗', limit: 6000, subs: ['Servis/Bakım'] },
       { id: 'vergiler', name: 'Vergiler', icon: '🏛️', limit: 5000, subs: ['MTV', 'Ev Vergisi'] },
-      { id: 'market', name: 'Market & Gıda', icon: '🛒', limit: 20000, subs: ['Market', 'Manav / Kasap', 'Su & İçecek'] },
-      { id: 'yemek', name: 'Yeme-İçme', icon: '🍽️', limit: 6000, subs: ['Restoran / Kafe', 'Sipariş'] },
-      { id: 'giyim', name: 'Giyim', icon: '👕', limit: 8000, subs: ['Giyim', 'Ayakkabı & Aksesuar'] },
-      { id: 'ulasim', name: 'Ulaşım', icon: '⛽', limit: 9000, subs: ['Akaryakıt', 'Toplu Taşıma / Taksi', 'Otopark & HGS'] },
-      { id: 'saglik', name: 'Sağlık', icon: '💊', limit: 4000, subs: ['Eczane', 'Doktor & Tahlil'] },
-      { id: 'abonelik', name: 'Abonelik & Eğlence', icon: '🎬', limit: 2500, subs: ['Dijital Abonelik', 'Eğlence & Hobi'] },
       { id: 'diger', name: 'Diğer', icon: '📦', limit: 15000, subs: ['Beklenmeyen Giderler'] }
     ],
     transactions: {},
@@ -901,9 +895,22 @@ class Component extends DCLogic {
   load() {
     try {
       const s = localStorage.getItem(KEY);
-      if (s) { const d = JSON.parse(s); if (d && d.version === VER) return d; }
+      if (s) { const d = JSON.parse(s); if (d && d.version === VER) return this.migrate(d); }
     } catch (e) {}
     return seed();
+  }
+  migrate(d) {
+    // Kredi kartına dahil olan detay kategorilerini kaldır (mükerrer olmasın)
+    const dead = ['market', 'yemek', 'giyim', 'ulasim', 'saglik', 'abonelik'];
+    const deadSubs = [];
+    (d.categories || []).forEach(c => { if (dead.indexOf(c.id) >= 0) (c.subs || []).forEach(s => deadSubs.push(s)); });
+    if (!deadSubs.length) return d;
+    d.categories = d.categories.filter(c => dead.indexOf(c.id) < 0);
+    Object.keys(d.months || {}).forEach(mk => { const ex = d.months[mk].expenses || {}; deadSubs.forEach(s => { delete ex[s]; }); });
+    Object.keys(d.confirmed || {}).forEach(mk => { deadSubs.forEach(s => { delete d.confirmed[mk]['exp:' + s]; }); });
+    Object.keys(d.transactions || {}).forEach(mk => { (d.transactions[mk] || []).forEach(t => { if (deadSubs.indexOf(t.sub) >= 0) t.sub = 'Beklenmeyen Giderler'; }); });
+    try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {}
+    return d;
   }
   save(d) { this.setState({ data: d }); try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {} }
   bpOf() { const w = typeof window !== 'undefined' ? window.innerWidth : 1280; return w < 720 ? 'phone' : w < 1120 ? 'tablet' : 'desktop'; }
