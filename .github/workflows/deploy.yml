@@ -12,15 +12,32 @@ jobs:
       - name: Kodu al
         uses: actions/checkout@v4
 
-      - name: FTP ile Hostinger'a yükle
+      # butce klasörüne yükle
+      - name: FTP - butce
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_HOST }}
           username: ${{ secrets.FTP_USER }}
           password: ${{ secrets.FTP_PASS }}
           protocol: ftps
-          server-dir: ${{ secrets.FTP_DIR }}
-          # Sadece uygulama dosyaları yüklensin; geri kalanlar hariç
+          server-dir: public_html/butce/
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/.github/**
+            README.md
+            .gitignore
+            icons/gen-icons.js
+
+      # butcetakip klasörüne de yükle (subdomain'in okuduğu klasör)
+      - name: FTP - butcetakip
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USER }}
+          password: ${{ secrets.FTP_PASS }}
+          protocol: ftps
+          server-dir: public_html/butcetakip/
           exclude: |
             **/.git*
             **/.git*/**
