@@ -497,7 +497,8 @@
             <div style="display:flex;align-items:baseline;gap:10px;padding:16px 18px;border-bottom:1px solid #ece8e0;flex-wrap:wrap">
               <h2 style="margin:0;font:700 15px 'Plus Jakarta Sans';letter-spacing:-0.2px">Zaman çizelgesi</h2>
               <span style="font:500 11.5px 'Plus Jakarta Sans';color:#8a837a">Her taksitin başı ve sonu · {{ timelineSpan }}</span>
-              <button onClick="{{ openInstallment }}" style="margin-left:auto;border:1px solid #ddd8ce;background:#faf9f5;border-radius:4px;padding:8px 13px;cursor:pointer;font:600 12px 'Plus Jakarta Sans';color:#55504a" style-hover="background:#f0efe8;border-color:#b5892b">+ Taksit ekle</button>
+              <button onClick="{{ hideDoneToggle }}" style="margin-left:auto;border:1px solid {{ hideDoneBd }};background:{{ hideDoneBg }};border-radius:4px;padding:8px 13px;cursor:pointer;font:600 12px 'Plus Jakarta Sans';color:{{ hideDoneFg }}" style-hover="background:#f0efe8">{{ hideDoneLabel }}</button>
+              <button onClick="{{ openInstallment }}" style="border:1px solid #ddd8ce;background:#faf9f5;border-radius:4px;padding:8px 13px;cursor:pointer;font:600 12px 'Plus Jakarta Sans';color:#55504a" style-hover="background:#f0efe8;border-color:#b5892b">+ Taksit ekle</button>
             </div>
             <div style="overflow-x:auto;padding:14px 18px 18px">
               <div style="min-width:660px">
@@ -890,7 +891,7 @@ function seed() {
 class Component extends DCLogic {
   constructor(p) {
     super(p);
-    this.state = { data: this.load(), tab: 'ozet', month: TODAY, bp: this.bpOf(), sheet: null, form: {}, manual: false, openCat: null, txInput: '', txBusy: false, txStatus: 'Metni yapıştır, Claude ayıklasın', txState: 'idle', priceStatus: { state: 'idle', text: 'Fiyatlar bekleniyor…' } };
+    this.state = { data: this.load(), tab: 'ozet', month: TODAY, bp: this.bpOf(), sheet: null, form: {}, manual: false, openCat: null, hideDone: false, txInput: '', txBusy: false, txStatus: 'Metni yapıştır, Claude ayıklasın', txState: 'idle', priceStatus: { state: 'idle', text: 'Fiyatlar bekleniyor…' } };
   }
   load() {
     try {
@@ -1382,9 +1383,12 @@ class Component extends DCLogic {
 
     const tlStart = idx('2025-07'), tlLen = 26;
     const ticks = []; for (let i = 0; i < tlLen; i += 3) ticks.push({ label: shortLabel(key(tlStart + i)) });
+    const hideDone = !!this.state.hideDone;
     const ganttGroups = d.installmentCards.map(c => {
-      const items = d.installments.filter(t => t.card === c.id).sort((a, b) => idx(a.start) - idx(b.start));
-      const rem = items.reduce((s, t) => { const left = Math.max(0, idx(t.start) + t.count - Math.max(nowIdx, idx(t.start))); return s + t.monthly * (idx(t.start) + t.count > nowIdx ? left : 0); }, 0);
+      const all = d.installments.filter(t => t.card === c.id);
+      const rem = all.reduce((s, t) => { const left = Math.max(0, idx(t.start) + t.count - Math.max(nowIdx, idx(t.start))); return s + t.monthly * (idx(t.start) + t.count > nowIdx ? left : 0); }, 0);
+      let items = all.slice().sort((a, b) => b.monthly - a.monthly);
+      if (hideDone) items = items.filter(t => idx(t.start) + t.count > nowIdx);
       return {
         name: c.name, color: c.color, remaining: fmt(rem) + ' ₺',
         rows: items.map(t => {
@@ -1392,7 +1396,7 @@ class Component extends DCLogic {
           return { desc: t.desc, monthly: fmt(t.monthly), count: t.count, fg: done ? '#a8a29a' : INK, left: (s - tlStart) / tlLen * 100, width: t.count / tlLen * 100, barBg: done ? '#e6e1d7' : c.color, barFg: done ? '#8a837a' : '#ffffff' };
         })
       };
-    });
+    }).filter(g => g.rows.length);
 
     // savings
     const goldRows = d.gold.order.map(t => ({
@@ -1573,6 +1577,8 @@ class Component extends DCLogic {
       catRows: catRows, people: people, personExpense: personExpense, endingSoon: endingSoon,
       incomeRows: incomeRows, incomeTotal: fmt(incTotal), catBlocks: catBlocks, expenseTotal: fmt(expTotal), savingsRows: savingsRows, savingsTotal: fmt(savTotal), entryCards: entryCards, equation: equation,
       cards: d.installmentCards, cardSummary: cardSummary, calendarRows: calendarRows, ganttGroups: ganttGroups, timelineTicks: ticks, nowLeft: (nowIdx - tlStart) / tlLen * 100, timelineSpan: shortLabel('2025-07') + ' → ' + shortLabel(key(tlStart + tlLen - 1)),
+      hideDoneLabel: hideDone ? 'Bitenleri göster' : 'Bitenleri gizle', hideDoneBg: hideDone ? '#eef0e4' : '#faf9f5', hideDoneBd: hideDone ? '#5f6b3a' : '#ddd8ce', hideDoneFg: hideDone ? '#414a24' : '#55504a',
+      hideDoneToggle: () => this.setState({ hideDone: !this.state.hideDone }),
       goldRows: goldRows, goldTotal: fmt(gv) + ' ₺', fxRows: fxRows, fxTotal: fmt(fv) + ' ₺', purchases: purchases, savingsKpis: savingsKpis,
       priceStatusText: this.state.priceStatus.text,
       priceDotColor: this.state.priceStatus.state === 'ok' ? OLIVE : this.state.priceStatus.state === 'loading' ? GOLD : '#c9c3b8',
