@@ -74,19 +74,33 @@
     return "";
   }
 
+  function localComplete(params) {
+    var content = params && params.messages && params.messages[0] ? params.messages[0].content : "";
+    var text = extractText(content);
+    var m = text.split(/Harcama metni:\s*/i);
+    var body = m.length > 1 ? m.slice(1).join("\n") : text;
+    var lines = body.split(/\r?\n/);
+    var out = [];
+    lines.forEach(function (ln) { var r = parseLine(ln); if (r) out.push(r); });
+    return JSON.stringify(out);
+  }
+
   window.claude = {
     complete: function (params) {
-      return new Promise(function (resolve) {
-        var content = params && params.messages && params.messages[0] ? params.messages[0].content : "";
-        var text = extractText(content);
-        // "Harcama metni:" sonrası kısmı al
-        var m = text.split(/Harcama metni:\s*/i);
-        var body = m.length > 1 ? m.slice(1).join("\n") : text;
-        var lines = body.split(/\r?\n/);
-        var out = [];
-        lines.forEach(function (ln) { var r = parseLine(ln); if (r) out.push(r); });
-        // görüntü verildi ama metin çıkmadıysa boş döndür (AI gerekir)
-        setTimeout(function () { resolve(JSON.stringify(out)); }, 150);
+      // Önce gerçek AI (sunucu fonksiyonu /api/claude). Başarısızsa yerel ayrıştırıcı.
+      return fetch("/api/claude", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(params)
+      }).then(function (r) {
+        return r.json().then(function (d) {
+          if (!r.ok || d.error) throw new Error(d && d.error ? d.error : "AI hatası");
+          return String(d.text || "");
+        });
+      }).catch(function (err) {
+        // AI yoksa/çevrimdışıysa: yapıştırılan metni yerelde ayıkla
+        console.warn("[claude] AI kullanılamadı, yerel ayrıştırıcıya düşülüyor:", err && err.message);
+        return localComplete(params);
       });
     }
   };
