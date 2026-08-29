@@ -1,0 +1,12 @@
+# Bağımlılıklar / çıktı
+node_modules/
+dist/
+
+# İşletim sistemi
+.DS_Store
+Thumbs.db
+
+# Editör
+.vscode/
+.idea/
+*.log

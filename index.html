@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f766e" />
+  <meta name="description" content="Gelir ve giderlerinizi kolayca takip edin. Telefon, tablet ve masaüstünde çalışır." />
+  <title>Bütçe Takip Programı</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-logo">₺</span>
+      <h1>Bütçe Takip</h1>
+    </div>
+    <div class="header-actions">
+      <select id="monthFilter" class="month-filter" aria-label="Ay filtresi"></select>
+      <button id="themeToggle" class="icon-btn" title="Tema değiştir" aria-label="Tema değiştir">🌙</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- Özet kartları -->
+    <section class="summary" aria-label="Özet">
+      <div class="card card-balance">
+        <span class="card-label">Bakiye</span>
+        <span class="card-value" id="balanceValue">₺0,00</span>
+      </div>
+      <div class="card card-income">
+        <span class="card-label">Gelir</span>
+        <span class="card-value" id="incomeValue">₺0,00</span>
+      </div>
+      <div class="card card-expense">
+        <span class="card-label">Gider</span>
+        <span class="card-value" id="expenseValue">₺0,00</span>
+      </div>
+    </section>
+
+    <div class="grid">
+      <!-- İşlem ekleme formu -->
+      <section class="panel">
+        <h2>Yeni İşlem</h2>
+        <form id="txForm" autocomplete="off">
+          <div class="type-toggle">
+            <label class="type-option">
+              <input type="radio" name="type" value="expense" checked />
+              <span class="type-label expense">Gider</span>
+            </label>
+            <label class="type-option">
+              <input type="radio" name="type" value="income" />
+              <span class="type-label income">Gelir</span>
+            </label>
+          </div>
+
+          <label class="field">
+            <span>Tutar (₺)</span>
+            <input type="number" id="amount" inputmode="decimal" step="0.01" min="0" placeholder="0,00" required />
+          </label>
+
+          <label class="field">
+            <span>Açıklama</span>
+            <input type="text" id="description" maxlength="60" placeholder="Örn. Market alışverişi" />
+          </label>
+
+          <label class="field">
+            <span>Kategori</span>
+            <select id="category"></select>
+          </label>
+
+          <label class="field">
+            <span>Tarih</span>
+            <input type="date" id="date" required />
+          </label>
+
+          <button type="submit" class="btn-primary">Ekle</button>
+        </form>
+      </section>
+
+      <!-- Kategori grafiği -->
+      <section class="panel">
+        <h2>Gider Dağılımı</h2>
+        <div class="chart-wrap">
+          <canvas id="chart" width="240" height="240" role="img" aria-label="Kategori bazında gider dağılımı grafiği"></canvas>
+        </div>
+        <ul id="legend" class="legend"></ul>
+      </section>
+    </div>
+
+    <!-- İşlem listesi -->
+    <section class="panel">
+      <div class="panel-head">
+        <h2>İşlemler</h2>
+        <span id="txCount" class="badge">0</span>
+      </div>
+      <ul id="txList" class="tx-list"></ul>
+      <p id="emptyState" class="empty">Bu ay için henüz işlem yok. İlk işlemini ekle!</p>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <span id="installHint" class="install-hint" hidden>
+      <button id="installBtn" class="btn-ghost">📲 Uygulamayı Yükle</button>
+    </span>
+    <span class="footer-note">Verileriniz yalnızca bu cihazda saklanır.</span>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
