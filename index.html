@@ -114,14 +114,14 @@
       </div>
 
       <section class="panel">
-        <div class="panel-head"><h2>Portföy</h2></div>
+        <div class="panel-head"><h2>Portföy</h2><button id="refreshGoldBtn" class="btn-mini">🔄 Fiyatları Güncelle</button></div>
         <div class="table-scroll">
           <table class="btable" id="portfolioTable">
             <thead><tr><th>Altın Türü</th><th>Miktar</th><th>Maliyet</th><th>Güncel Fiyat</th><th>Güncel Değer</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
-        <p class="hint-inline" style="margin-top:8px;">Güncel birim fiyatları girin; değer ve kâr/zarar otomatik hesaplanır.</p>
+        <p class="hint-inline" id="priceInfo" style="margin-top:8px;">Güncel fiyatlar otomatik çekilir (kaynak: truncgil, satış fiyatı). Dilerseniz elle de değiştirebilirsiniz.</p>
       </section>
 
       <section class="panel">

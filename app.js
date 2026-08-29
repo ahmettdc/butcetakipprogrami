@@ -22,6 +22,44 @@
   function monthIndex(key) { var p = key.split("-"); return (+p[0]) * 12 + (+p[1] - 1); }
   function indexToKey(idx) { var y = Math.floor(idx / 12); var m = idx % 12; return y + "-" + String(m + 1).padStart(2, "0"); }
   function todayMonth() { var d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); }
+  function todayDate() { return new Date().toISOString().slice(0, 10); }
+
+  // Güncel altın fiyatları (truncgil v4, ücretsiz, CORS açık)
+  var GOLD_API = "https://finans.truncgil.com/v4/today.json";
+  var PRICE_DATE_KEY = "butce_altin_fiyat_tarih";
+  var GOLD_MAP = {
+    "Çeyrek": "CEYREKALTIN",
+    "Yarım": "YARIMALTIN",
+    "Ata / Tam": "ATAALTIN",
+    "22 Ayar Gram": "YIA",
+    "24 Ayar Gram": "GRA",
+    "Külçe Altın": "GRA"
+  };
+  function fetchGoldPrices(manual) {
+    var info = $("#priceInfo");
+    if (manual && info) info.textContent = "Fiyatlar güncelleniyor…";
+    return fetch(GOLD_API, { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (d) {
+      var updated = 0;
+      Object.keys(GOLD_MAP).forEach(function (type) {
+        var rec = d[GOLD_MAP[type]];
+        var val = rec && (rec.Selling != null ? rec.Selling : rec.Buying);
+        if (val) { state.gold.prices[type] = Math.round(+val * 100) / 100; updated++; }
+      });
+      state.gold.priceUpdate = d.Update_Date || todayDate();
+      save();
+      try { localStorage.setItem(PRICE_DATE_KEY, todayDate()); } catch (e) {}
+      var act = document.querySelector(".tab.active");
+      if (act && act.dataset.tab === "birikim") renderGold();
+      return updated;
+    }).catch(function () {
+      if (manual && info) info.textContent = "⚠️ Fiyatlar alınamadı (internet yok veya kaynak yanıt vermedi). Elle girebilirsiniz.";
+      return 0;
+    });
+  }
+  function maybeAutoUpdatePrices() {
+    var last = null; try { last = localStorage.getItem(PRICE_DATE_KEY); } catch (e) {}
+    if (last !== todayDate()) fetchGoldPrices(false);
+  }
 
   // --- Durum ---
   var state = null;
@@ -396,6 +434,12 @@
       list.appendChild(li);
     });
     $("#goldEmpty").hidden = g.purchases.length !== 0;
+
+    var info = $("#priceInfo");
+    if (info) {
+      if (g.priceUpdate) info.textContent = "Güncel fiyatlar otomatik çekilir (kaynak: truncgil, satış). Son güncelleme: " + g.priceUpdate;
+      else info.textContent = "Güncel fiyatlar otomatik çekilir (kaynak: truncgil, satış fiyatı). Dilerseniz elle de değiştirebilirsiniz.";
+    }
   }
 
   // === Modal ===
@@ -558,6 +602,14 @@
     $("#installBtn").addEventListener("click", function () { if (deferredPrompt) { deferredPrompt.prompt(); deferredPrompt.userChoice.finally(function () { deferredPrompt = null; $("#installHint").hidden = true; }); } });
     $("#addInstallBtn").addEventListener("click", addInstallment);
     $("#addGoldBtn").addEventListener("click", addGold);
+    $("#refreshGoldBtn").addEventListener("click", function () {
+      fetchGoldPrices(true).then(function (n) {
+        if (n > 0) { var i = $("#priceInfo"); if (i && state.gold.priceUpdate) i.textContent = "✅ Güncellendi (kaynak: truncgil, satış). Son güncelleme: " + state.gold.priceUpdate; }
+      });
+    });
+
+    // günlük otomatik fiyat güncelleme
+    maybeAutoUpdatePrices();
   }
 
   document.addEventListener("DOMContentLoaded", init);

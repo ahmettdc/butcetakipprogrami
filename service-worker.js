@@ -1,5 +1,5 @@
 /* Basit çevrimdışı önbellek */
-var CACHE = "butce-takip-v2";
+var CACHE = "butce-takip-v3";
 var ASSETS = [
   "./",
   "./index.html",
@@ -32,6 +32,10 @@ self.addEventListener("activate", function (e) {
 
 self.addEventListener("fetch", function (e) {
   if (e.request.method !== "GET") return;
+  // Farklı origin'e giden istekleri (örn. güncel altın fiyatı API'si) önbelleğe alma;
+  // her zaman ağdan taze gelsin.
+  var url = new URL(e.request.url);
+  if (url.origin !== self.location.origin) return;
   e.respondWith(
     caches.match(e.request).then(function (cached) {
       return cached || fetch(e.request).then(function (res) {
