@@ -287,8 +287,8 @@
                     <sc-for list="{{ incomeRows }}" as="r" hint-placeholder-count="4">
                       <tr>
                         <td style="padding:7px 18px;border-bottom:1px solid #f4f1ea;font:600 13px 'Plus Jakarta Sans'">{{ r.label }}</td>
-                        <td style="padding:7px 14px;border-bottom:1px solid #f4f1ea"><input type="number" step="0.01" value="{{ r.a }}" onChange="{{ r.setA }}" style="width:100%;border:1px solid #e6e1d7;background:#fffefb;border-radius:3px;padding:7px 9px;font:500 12.5px 'Roboto Mono',monospace;color:#1a1815;text-align:right" style-focus="border-color:#5f6b3a;outline:none;background:#fbfaf6" /></td>
-                        <td style="padding:7px 14px;border-bottom:1px solid #f4f1ea"><input type="number" step="0.01" value="{{ r.b }}" onChange="{{ r.setB }}" style="width:100%;border:1px solid #e6e1d7;background:#fffefb;border-radius:3px;padding:7px 9px;font:500 12.5px 'Roboto Mono',monospace;color:#1a1815;text-align:right" style-focus="border-color:#5f6b3a;outline:none;background:#fbfaf6" /></td>
+                        <td style="padding:7px 14px;border-bottom:1px solid #f4f1ea"><div style="display:flex;gap:6px;align-items:center"><input type="number" step="0.01" value="{{ r.a }}" onChange="{{ r.setA }}" style="flex:1;min-width:0;border:1px solid #e6e1d7;background:{{ r.tickA.ph }};border-radius:3px;padding:7px 9px;font:500 12.5px 'Roboto Mono',monospace;color:#1a1815;text-align:right" style-focus="border-color:#5f6b3a;outline:none;background:#fbfaf6" /><button onClick="{{ r.tickA.toggle }}" title="{{ r.tickA.title }}" style="flex:0 0 26px;width:26px;height:32px;border:1px solid {{ r.tickA.bd }};background:{{ r.tickA.bg }};color:{{ r.tickA.fg }};border-radius:3px;cursor:pointer;font:700 12px 'Plus Jakarta Sans';line-height:1;padding:0">{{ r.tickA.mark }}</button></div></td>
+                        <td style="padding:7px 14px;border-bottom:1px solid #f4f1ea"><div style="display:flex;gap:6px;align-items:center"><input type="number" step="0.01" value="{{ r.b }}" onChange="{{ r.setB }}" style="flex:1;min-width:0;border:1px solid #e6e1d7;background:{{ r.tickB.ph }};border-radius:3px;padding:7px 9px;font:500 12.5px 'Roboto Mono',monospace;color:#1a1815;text-align:right" style-focus="border-color:#5f6b3a;outline:none;background:#fbfaf6" /><button onClick="{{ r.tickB.toggle }}" title="{{ r.tickB.title }}" style="flex:0 0 26px;width:26px;height:32px;border:1px solid {{ r.tickB.bd }};background:{{ r.tickB.bg }};color:{{ r.tickB.fg }};border-radius:3px;cursor:pointer;font:700 12px 'Plus Jakarta Sans';line-height:1;padding:0">{{ r.tickB.mark }}</button></div></td>
                         <td style="padding:7px 18px;border-bottom:1px solid #f4f1ea;text-align:right;font:600 13px 'Roboto Mono',monospace">{{ r.total }}</td>
                       </tr>
                     </sc-for>
@@ -318,7 +318,8 @@
                         <span style="font:600 13px 'Plus Jakarta Sans'">{{ s.label }}</span>
                         <span style="font:500 10.5px 'Roboto Mono',monospace;color:{{ s.hintColor }}">{{ s.hint }}</span>
                       </div>
-                      <input type="number" step="0.01" value="{{ s.val }}" onChange="{{ s.set }}" style="width:150px;flex:0 0 150px;border:1px solid #e6e1d7;background:#fffefb;border-radius:3px;padding:7px 9px;font:500 12.5px 'Roboto Mono',monospace;color:#1a1815;text-align:right" style-focus="border-color:#a2452c;outline:none;background:#fbfaf6" />
+                      <input type="number" step="0.01" value="{{ s.val }}" onChange="{{ s.set }}" style="width:128px;flex:0 0 128px;border:1px solid #e6e1d7;background:{{ s.tick.ph }};border-radius:3px;padding:7px 9px;font:500 12.5px 'Roboto Mono',monospace;color:#1a1815;text-align:right" style-focus="border-color:#a2452c;outline:none;background:#fbfaf6" />
+                      <button onClick="{{ s.tick.toggle }}" title="{{ s.tick.title }}" style="flex:0 0 28px;width:28px;height:34px;border:1px solid {{ s.tick.bd }};background:{{ s.tick.bg }};color:{{ s.tick.fg }};border-radius:3px;cursor:pointer;font:700 13px 'Plus Jakarta Sans';line-height:1;padding:0">{{ s.tick.mark }}</button>
                     </div>
                   </sc-for>
                 </div>
@@ -333,7 +334,8 @@
               <sc-for list="{{ savingsRows }}" as="s" hint-placeholder-count="3">
                 <div style="display:flex;align-items:center;gap:12px;padding:8px 18px;border-bottom:1px solid #f4f1ea">
                   <span style="flex:1;font:600 13px 'Plus Jakarta Sans'">{{ s.label }}</span>
-                  <input type="number" step="0.01" value="{{ s.val }}" onChange="{{ s.set }}" style="width:150px;flex:0 0 150px;border:1px solid #e6e1d7;background:#fffefb;border-radius:3px;padding:7px 9px;font:500 12.5px 'Roboto Mono',monospace;text-align:right;color:#1a1815" style-focus="border-color:#b5892b;outline:none;background:#fbfaf6" />
+                  <input type="number" step="0.01" value="{{ s.val }}" onChange="{{ s.set }}" style="width:128px;flex:0 0 128px;border:1px solid #e6e1d7;background:{{ s.tick.ph }};border-radius:3px;padding:7px 9px;font:500 12.5px 'Roboto Mono',monospace;text-align:right;color:#1a1815" style-focus="border-color:#b5892b;outline:none;background:#fbfaf6" />
+                  <button onClick="{{ s.tick.toggle }}" title="{{ s.tick.title }}" style="flex:0 0 28px;width:28px;height:34px;border:1px solid {{ s.tick.bd }};background:{{ s.tick.bg }};color:{{ s.tick.fg }};border-radius:3px;cursor:pointer;font:700 13px 'Plus Jakarta Sans';line-height:1;padding:0">{{ s.tick.mark }}</button>
                 </div>
               </sc-for>
             </section>
@@ -353,7 +355,8 @@
                       <span style="font:600 12.5px 'Plus Jakarta Sans'">{{ r.label }}</span>
                       <span style="font:500 10px 'Roboto Mono',monospace;color:{{ r.hintColor }}">{{ r.hint }}</span>
                     </div>
-                    <input type="number" step="0.01" value="{{ r.val }}" onChange="{{ r.set }}" style="width:118px;flex:0 0 118px;border:1px solid #e6e1d7;background:#fffefb;border-radius:3px;padding:9px;font:500 12.5px 'Roboto Mono',monospace;text-align:right;color:#1a1815" style-focus="border-color:#5f6b3a;outline:none;background:#fbfaf6" />
+                    <input type="number" step="0.01" value="{{ r.val }}" onChange="{{ r.set }}" style="width:96px;flex:0 0 96px;border:1px solid #e6e1d7;background:{{ r.tick.ph }};border-radius:3px;padding:9px;font:500 12.5px 'Roboto Mono',monospace;text-align:right;color:#1a1815" style-focus="border-color:#5f6b3a;outline:none;background:#fbfaf6" />
+                    <button onClick="{{ r.tick.toggle }}" title="{{ r.tick.title }}" style="flex:0 0 30px;width:30px;height:36px;border:1px solid {{ r.tick.bd }};background:{{ r.tick.bg }};color:{{ r.tick.fg }};border-radius:3px;cursor:pointer;font:700 14px 'Plus Jakarta Sans';line-height:1;padding:0">{{ r.tick.mark }}</button>
                   </div>
                 </sc-for>
               </section>
@@ -1051,6 +1054,23 @@ class Component extends DCLogic {
   setSaving(mk, item, v) { const d = this.ensure(mk); d.months[mk].savings[item] = v; this.save(d); }
   setLimit(cid, v) { const d = JSON.parse(JSON.stringify(this.state.data)); const c = d.categories.find(x => x.id === cid); if (c) c.limit = v; this.save(d); }
   num(e) { const v = parseFloat(String(e.target.value).replace(',', '.')); return isNaN(v) ? 0 : v; }
+  isConf(mk, k) { const c = this.state.data.confirmed; return !!(c && c[mk] && c[mk][k]); }
+  toggleConf(mk, k) {
+    const d = JSON.parse(JSON.stringify(this.state.data));
+    if (!d.confirmed) d.confirmed = {};
+    if (!d.confirmed[mk]) d.confirmed[mk] = {};
+    if (d.confirmed[mk][k]) delete d.confirmed[mk][k]; else d.confirmed[mk][k] = 1;
+    if (!Object.keys(d.confirmed[mk]).length) delete d.confirmed[mk];
+    this.save(d);
+  }
+  tickView(mk, k) {
+    const on = this.isConf(mk, k), self = this;
+    return {
+      mark: '✓', bg: on ? '#eef0e4' : '#fffefb', bd: on ? '#5f6b3a' : '#ddd8ce', fg: on ? '#414a24' : '#cfc9bf', ph: on ? '#f3f5ea' : '#fffefb',
+      title: on ? 'Kesinleşti — düzenlemek için tıkla' : 'Kesinleşince işaretle (kutuyu kilitler)',
+      toggle: e => { if (e && e.stopPropagation) e.stopPropagation(); self.toggleConf(mk, k); }
+    };
+  }
 
   txMonth() { const m = this.state.month; return idx(m) < idx(TX_START) ? TX_START : m; }
   txList(mk) { return (this.state.data.transactions || {})[mk] || []; }
@@ -1286,7 +1306,12 @@ class Component extends DCLogic {
     // budget entry
     const incomeRows = d.incomeItems.map(it => {
       const a = +(mData.income[it] || {})[d.people[0]] || 0, b = +(mData.income[it] || {})[d.people[1]] || 0;
-      return { label: it, a: a, b: b, total: fmt(a + b), setA: e => this.setIncome(mk, it, d.people[0], this.num(e)), setB: e => this.setIncome(mk, it, d.people[1], this.num(e)) };
+      const kA = 'inc:' + it + ':' + d.people[0], kB = 'inc:' + it + ':' + d.people[1];
+      const cA = this.isConf(mk, kA), cB = this.isConf(mk, kB);
+      return { label: it, a: a, b: b, total: fmt(a + b),
+        setA: cA ? (() => {}) : (e => this.setIncome(mk, it, d.people[0], this.num(e))),
+        setB: cB ? (() => {}) : (e => this.setIncome(mk, it, d.people[1], this.num(e))),
+        tickA: this.tickView(mk, kA), tickB: this.tickView(mk, kB) };
     });
     const subHint = s => {
       const inv = Object.keys(d.cardSubMap).find(k => d.cardSubMap[k] === s);
@@ -1300,20 +1325,20 @@ class Component extends DCLogic {
       icon: c.icon, name: c.name, limit: +c.limit || 0,
       total: fmt(c.subs.reduce((s, x) => s + (+mData.expenses[x] || 0), 0)),
       setLimit: e => this.setLimit(c.id, this.num(e)),
-      subs: c.subs.map(s => Object.assign({ label: s, val: +mData.expenses[s] || 0, set: e => this.setExpense(mk, s, this.num(e)) }, subHint(s)))
+      subs: c.subs.map(s => { const k = 'exp:' + s, on = this.isConf(mk, k); return Object.assign({ label: s, val: +mData.expenses[s] || 0, set: on ? (() => {}) : (e => this.setExpense(mk, s, this.num(e))), tick: this.tickView(mk, k) }, subHint(s)); })
     }));
-    const savingsRows = d.savingsItems.map(s => ({ label: s, val: +mData.savings[s] || 0, set: e => this.setSaving(mk, s, this.num(e)) }));
+    const savingsRows = d.savingsItems.map(s => { const k = 'sav:' + s, on = this.isConf(mk, k); return { label: s, val: +mData.savings[s] || 0, set: on ? (() => {}) : (e => this.setSaving(mk, s, this.num(e))), tick: this.tickView(mk, k) }; });
     const entryCards = [{
       icon: '＋', name: 'Gelir', headBg: '#eef0e4', color: OLIVE, total: fmt(incTotal),
-      rows: d.incomeItems.reduce((acc, it) => acc.concat(d.people.map(p => ({ label: it + ' · ' + p, hint: '', hintColor: DIM, val: +(mData.income[it] || {})[p] || 0, set: e => this.setIncome(mk, it, p, this.num(e)) }))), [])
+      rows: d.incomeItems.reduce((acc, it) => acc.concat(d.people.map(p => { const k = 'inc:' + it + ':' + p, on = this.isConf(mk, k); return { label: it + ' · ' + p, hint: '', hintColor: DIM, val: +(mData.income[it] || {})[p] || 0, set: on ? (() => {}) : (e => this.setIncome(mk, it, p, this.num(e))), tick: this.tickView(mk, k) }; })), [])
     }].concat(d.categories.map(c => ({
       icon: c.icon, name: c.name, headBg: '#faf9f5', color: RUST,
       total: fmt(c.subs.reduce((s, x) => s + (+mData.expenses[x] || 0), 0)),
-      rows: c.subs.map(s => Object.assign({ label: s, val: +mData.expenses[s] || 0, set: e => this.setExpense(mk, s, this.num(e)) }, subHint(s)))
+      rows: c.subs.map(s => { const k = 'exp:' + s, on = this.isConf(mk, k); return Object.assign({ label: s, val: +mData.expenses[s] || 0, set: on ? (() => {}) : (e => this.setExpense(mk, s, this.num(e))), tick: this.tickView(mk, k) }, subHint(s)); })
     })), [{
       icon: '◆', name: 'Birikime ayrılan', headBg: '#f9f2e0', color: GOLD,
       total: fmt(d.savingsItems.reduce((s, x) => s + (+mData.savings[x] || 0), 0)),
-      rows: d.savingsItems.map(s => ({ label: s, hint: '', hintColor: DIM, val: +mData.savings[s] || 0, set: e => this.setSaving(mk, s, this.num(e)) }))
+      rows: d.savingsItems.map(s => { const k = 'sav:' + s, on = this.isConf(mk, k); return { label: s, hint: '', hintColor: DIM, val: +mData.savings[s] || 0, set: on ? (() => {}) : (e => this.setSaving(mk, s, this.num(e))), tick: this.tickView(mk, k) }; })
     }]);
     const expTotal = d.categories.reduce((s, c) => s + c.subs.reduce((a, x) => a + (+mData.expenses[x] || 0), 0), 0);
     const savTotal = d.savingsItems.reduce((s, x) => s + (+mData.savings[x] || 0), 0);
