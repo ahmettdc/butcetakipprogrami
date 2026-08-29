@@ -1,26 +1,16 @@
 {
-  "name": "Bütçe Takip Programı",
-  "short_name": "Bütçe Takip",
-  "description": "Gelir ve giderlerinizi kolayca takip edin.",
+  "name": "Aile Bütçesi",
+  "short_name": "Aile Bütçesi",
+  "description": "Gelir/gider, taksitler, birikim ve altın portföyü takibi.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#f4f6f8",
-  "theme_color": "#0f766e",
+  "background_color": "#f4f2ed",
+  "theme_color": "#5f6b3a",
   "lang": "tr",
   "icons": [
-    {
-      "src": "icons/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "icons/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ]
 }

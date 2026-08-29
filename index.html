@@ -1,165 +1,1580 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#0f766e" />
-  <meta name="description" content="Hane bütçe takibi: aylık bütçe, taksitler ve altın birikimi. Telefon, tablet ve masaüstünde çalışır." />
-  <title>Bütçe Takip Programı</title>
-  <link rel="manifest" href="manifest.json" />
-  <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
-  <link rel="apple-touch-icon" href="icons/icon-192.png" />
-  <link rel="stylesheet" href="style.css" />
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#5f6b3a" />
+<meta name="description" content="Aile bütçesi: gelir/gider, taksitler, birikim ve altın portföyü. Telefon, tablet ve masaüstünde çalışır." />
+<title>Aile Bütçesi</title>
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<script src="./claude-local.js"></script>
+<script src="./support.js"></script>
 </head>
 <body>
-  <header class="app-header">
-    <div class="brand">
-      <span class="brand-logo">₺</span>
-      <h1>Bütçe Takip</h1>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Roboto+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  html, body { margin: 0; padding: 0; background: #f4f2ed; }
+  * { box-sizing: border-box; }
+  a { color: #5f6b3a; text-decoration: none; }
+  a:hover { color: #414a24; text-decoration: underline; }
+  input, select, button { font-family: inherit; }
+  input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  input[type=number] { -moz-appearance: textfield; }
+  ::selection { background: #e4e7d4; }
+</style>
+</helmet>
+
+<div style="display:flex;min-height:100vh;background:#f4f2ed;color:#1a1815;font-family:'Plus Jakarta Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased">
+
+  <aside style="display:{{ sidebarDisplay }};width:236px;flex:0 0 236px;flex-direction:column;gap:2px;border-right:1px solid #ddd8ce;background:#fffefb;position:sticky;top:0;height:100vh;padding:22px 14px">
+    <div style="padding:0 8px 18px">
+      <div style="font:800 15px/1.2 'Plus Jakarta Sans';letter-spacing:-0.2px">Aile Bütçesi</div>
+      <div style="font:500 11px/1.4 'Roboto Mono',monospace;color:#8a837a;margin-top:4px;text-transform:uppercase;letter-spacing:0.06em">Ahmet &amp; Elif</div>
     </div>
-    <div class="header-actions">
-      <select id="monthFilter" class="month-filter" aria-label="Ay seçimi"></select>
-      <button id="themeToggle" class="icon-btn" title="Tema değiştir" aria-label="Tema değiştir">🌙</button>
-      <button id="menuBtn" class="icon-btn" title="Menü" aria-label="Menü">⋮</button>
+    <sc-for list="{{ navItems }}" as="n" hint-placeholder-count="5">
+      <button onClick="{{ n.go }}" style="display:flex;align-items:center;gap:11px;width:100%;border:1px solid transparent;border-radius:4px;background:{{ n.bg }};color:{{ n.fg }};padding:10px 10px;text-align:left;cursor:pointer;font:600 13.5px 'Plus Jakarta Sans';border-color:{{ n.bd }}" style-hover="background:#f0efe8">
+        <span style="width:18px;height:18px;flex:0 0 18px;display:flex;align-items:center;justify-content:center;font-size:14px">{{ n.icon }}</span>
+        <span style="flex:1">{{ n.label }}</span>
+        <span style="font:500 10px 'Roboto Mono',monospace;color:#a8a29a">{{ n.hint }}</span>
+      </button>
+    </sc-for>
+    <div style="flex:1"></div>
+    <div style="border-top:1px solid #ddd8ce;padding:14px 8px 0;display:flex;flex-direction:column;gap:6px">
+      <div style="font:500 10px 'Roboto Mono',monospace;color:#8a837a;text-transform:uppercase;letter-spacing:0.08em">Bakiye tahmini · 12 ay</div>
+      <div style="font:600 20px 'Roboto Mono',monospace;color:{{ horizonColor }};letter-spacing:-0.5px">{{ horizonBalance }} ₺</div>
+      <div style="font:500 11px/1.5 'Plus Jakarta Sans';color:#55504a">{{ horizonNote }}</div>
     </div>
-  </header>
+  </aside>
 
-  <!-- Sekme çubuğu -->
-  <nav class="tabs" role="tablist">
-    <button class="tab active" data-tab="ozet" role="tab">📊 Özet</button>
-    <button class="tab" data-tab="butce" role="tab">🧾 Aylık Bütçe</button>
-    <button class="tab" data-tab="taksitler" role="tab">💳 Taksitler</button>
-    <button class="tab" data-tab="birikim" role="tab">💰 Birikim</button>
-  </nav>
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column">
 
-  <main class="container">
-    <!-- ÖZET -->
-    <section id="tab-ozet" class="tabpanel active">
-      <div class="summary summary-4">
-        <div class="card card-income"><span class="card-label">Toplam Kaynak</span><span class="card-value" id="oKaynak">₺0</span></div>
-        <div class="card card-expense"><span class="card-label">Toplam Gider</span><span class="card-value" id="oGider">₺0</span></div>
-        <div class="card card-savings"><span class="card-label">Birikim</span><span class="card-value" id="oBirikim">₺0</span></div>
-        <div class="card card-balance"><span class="card-label">Kalan Bütçe</span><span class="card-value" id="oKalan">₺0</span></div>
-      </div>
-
-      <div class="grid">
-        <section class="panel">
-          <h2>Gider Dağılımı</h2>
-          <div class="chart-wrap"><canvas id="chart" width="240" height="240" role="img" aria-label="Kategori bazında gider dağılımı"></canvas></div>
-          <ul id="legend" class="legend"></ul>
-        </section>
-        <section class="panel">
-          <h2>Gelir — Kişi Bazlı</h2>
-          <div id="incomeByPerson" class="mini-list"></div>
-          <h2 style="margin-top:18px;">Bu Ay Taksit Yükü</h2>
-          <div id="installBurden" class="mini-list"></div>
-        </section>
-      </div>
-
-      <section class="panel">
-        <h2>Aylık Trend (Gelir / Gider / Kalan)</h2>
-        <div class="chart-wrap chart-bars"><canvas id="trendChart" width="600" height="220" role="img" aria-label="Aylık trend grafiği"></canvas></div>
-      </section>
-    </section>
-
-    <!-- AYLIK BÜTÇE -->
-    <section id="tab-butce" class="tabpanel">
-      <section class="panel">
-        <div class="panel-head"><h2 id="butceBaslik">Aylık Bütçe</h2><span class="hint-inline">Tutarlara dokunup düzenleyin</span></div>
-
-        <h3 class="sub-h">GELİR KALEMLERİ</h3>
-        <div class="table-scroll">
-          <table class="btable" id="incomeTable"><thead><tr><th>Kalem</th><th id="p1Head">AHMET</th><th id="p2Head">ELİF</th><th>Toplam</th></tr></thead><tbody></tbody>
-            <tfoot>
-              <tr class="row-sum"><td>TOPLAM GELİR</td><td id="sumP1">₺0</td><td id="sumP2">₺0</td><td id="sumIncome">₺0</td></tr>
-              <tr><td>Eldeki Bakiye (devir)</td><td colspan="2"><input type="number" step="0.01" id="carryover" class="cell-input" /></td><td id="carryShow">₺0</td></tr>
-              <tr class="row-sum row-strong"><td>TOPLAM KAYNAK</td><td colspan="2"></td><td id="sumKaynak">₺0</td></tr>
-            </tfoot>
-          </table>
+    <header style="position:sticky;top:0;z-index:30;background:#f4f2edf2;backdrop-filter:blur(8px);border-bottom:1px solid #ddd8ce">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px clamp(14px,3vw,30px)">
+        <div style="display:{{ mobileTitleDisplay }};flex-direction:column;margin-right:auto">
+          <div style="font:800 15px/1.1 'Plus Jakarta Sans';letter-spacing:-0.2px">{{ tabTitle }}</div>
+          <div style="font:500 10.5px 'Roboto Mono',monospace;color:#8a837a;margin-top:3px;text-transform:uppercase;letter-spacing:0.06em">Ahmet &amp; Elif</div>
         </div>
-      </section>
+        <div style="display:{{ desktopTitleDisplay }};font:800 clamp(18px,2.2vw,24px) 'Plus Jakarta Sans';letter-spacing:-0.5px;margin-right:auto">{{ tabTitle }}</div>
 
-      <section class="panel">
-        <h3 class="sub-h">GİDERLER</h3>
-        <div id="expenseGroups"></div>
-        <div class="totline"><span>TOPLAM GİDER</span><strong id="sumExpense">₺0</strong></div>
-      </section>
-
-      <section class="panel">
-        <h3 class="sub-h">💰 BİRİKİM / YATIRIM</h3>
-        <div id="savingsGroup" class="kv-list"></div>
-        <div class="totline"><span>TOPLAM BİRİKİM</span><strong id="sumSavings">₺0</strong></div>
-        <div class="totline totline-final"><span>KALAN BÜTÇE</span><strong id="sumKalan">₺0</strong></div>
-      </section>
-    </section>
-
-    <!-- TAKSİTLER -->
-    <section id="tab-taksitler" class="tabpanel">
-      <div class="summary summary-2">
-        <div class="card card-expense"><span class="card-label" id="taksitAyLabel">Bu Ay Ödenecek</span><span class="card-value" id="taksitBuAy">₺0</span></div>
-        <div class="card card-balance"><span class="card-label">Toplam Kalan Borç</span><span class="card-value" id="taksitKalan">₺0</span></div>
-      </div>
-      <section class="panel">
-        <div class="panel-head"><h2>Taksitler</h2><button id="addInstallBtn" class="btn-mini">+ Taksit Ekle</button></div>
-        <div id="cardsWrap"></div>
-      </section>
-    </section>
-
-    <!-- BİRİKİM -->
-    <section id="tab-birikim" class="tabpanel">
-      <div class="summary summary-3">
-        <div class="card card-savings"><span class="card-label">Toplam Maliyet</span><span class="card-value" id="gMaliyet">₺0</span></div>
-        <div class="card card-income"><span class="card-label">Güncel Değer</span><span class="card-value" id="gDeger">₺0</span></div>
-        <div class="card" id="gKarCard"><span class="card-label">Kâr / Zarar</span><span class="card-value" id="gKar">₺0</span></div>
-      </div>
-
-      <section class="panel">
-        <div class="panel-head"><h2>Portföy</h2><button id="refreshGoldBtn" class="btn-mini">🔄 Fiyatları Güncelle</button></div>
-        <div class="table-scroll">
-          <table class="btable" id="portfolioTable">
-            <thead><tr><th>Altın Türü</th><th>Miktar</th><th>Maliyet</th><th>Güncel Fiyat</th><th>Güncel Değer</th></tr></thead>
-            <tbody></tbody>
-          </table>
+        <div style="display:flex;align-items:center;border:1px solid #ddd8ce;border-radius:4px;background:#fffefb;overflow:hidden">
+          <button onClick="{{ prevMonth }}" style="border:0;background:transparent;padding:9px 12px;cursor:pointer;font:600 14px 'Plus Jakarta Sans';color:#55504a" style-hover="background:#f0efe8">‹</button>
+          <div style="display:flex;flex-direction:column;align-items:center;padding:4px 6px;min-width:118px;border-left:1px solid #ece8e0;border-right:1px solid #ece8e0">
+            <span style="font:700 13px 'Plus Jakarta Sans';letter-spacing:-0.1px">{{ monthLabel }}</span>
+            <span style="font:500 9.5px 'Roboto Mono',monospace;letter-spacing:0.08em;text-transform:uppercase;color:{{ monthBadgeColor }}">{{ monthBadge }}</span>
+          </div>
+          <button onClick="{{ nextMonth }}" style="border:0;background:transparent;padding:9px 12px;cursor:pointer;font:600 14px 'Plus Jakarta Sans';color:#55504a" style-hover="background:#f0efe8">›</button>
         </div>
-        <p class="hint-inline" id="priceInfo" style="margin-top:8px;">Güncel fiyatlar otomatik çekilir (kaynak: truncgil, satış fiyatı). Dilerseniz elle de değiştirebilirsiniz.</p>
-      </section>
+      </div>
 
-      <section class="panel">
-        <div class="panel-head"><h2>Alım Defteri</h2><button id="addGoldBtn" class="btn-mini">+ Alım Ekle</button></div>
-        <ul id="goldList" class="tx-list"></ul>
-        <p id="goldEmpty" class="empty" hidden>Henüz altın alımı yok.</p>
-      </section>
-    </section>
-  </main>
+      <div style="display:{{ topTabsDisplay }};gap:2px;padding:0 clamp(14px,3vw,30px) 0;overflow-x:auto">
+        <sc-for list="{{ navItems }}" as="n" hint-placeholder-count="5">
+          <button onClick="{{ n.go }}" style="border:0;border-bottom:2px solid {{ n.tabBd }};background:transparent;padding:10px 14px;cursor:pointer;font:600 13px 'Plus Jakarta Sans';color:{{ n.tabFg }};white-space:nowrap">{{ n.label }}</button>
+        </sc-for>
+      </div>
+    </header>
 
-  <!-- Menü / yedekleme çekmecesi -->
-  <div id="drawer" class="drawer" hidden>
-    <div class="drawer-body">
-      <h3>Menü</h3>
-      <button id="exportBtn" class="drawer-item">⬇️ Verileri Yedekle (JSON indir)</button>
-      <label class="drawer-item" for="importFile">⬆️ Yedekten Geri Yükle</label>
-      <input type="file" id="importFile" accept="application/json" hidden />
-      <button id="addMonthBtn" class="drawer-item">➕ Yeni Ay Ekle</button>
-      <button id="resetBtn" class="drawer-item danger">♻️ Excel Verisine Sıfırla</button>
-      <span id="installHint" hidden><button id="installBtn" class="drawer-item">📲 Uygulamayı Yükle</button></span>
-      <button id="closeDrawer" class="drawer-item ghost">Kapat</button>
-      <p class="footer-note">Tüm veriler yalnızca bu cihazda saklanır.</p>
-    </div>
+    <main style="flex:1;min-width:0;padding:clamp(14px,2.6vw,28px) clamp(14px,3vw,30px) 120px;display:flex;flex-direction:column;gap:clamp(14px,2vw,22px);max-width:1360px;width:100%">
+
+      <sc-if value="{{ isOzet }}" hint-placeholder-val="{{ true }}">
+        <div data-screen-label="Özet" style="display:flex;flex-direction:column;gap:clamp(14px,2vw,22px)">
+
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:#ddd8ce;border:1px solid #ddd8ce;border-radius:4px;overflow:hidden">
+            <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="5">
+              <div style="background:#fffefb;padding:14px 16px;display:flex;flex-direction:column;gap:7px">
+                <div style="font:500 10px 'Roboto Mono',monospace;color:#8a837a;text-transform:uppercase;letter-spacing:0.09em">{{ k.label }}</div>
+                <div style="font:600 clamp(19px,2vw,24px) 'Roboto Mono',monospace;letter-spacing:-0.8px;color:{{ k.color }}">{{ k.value }}</div>
+                <div style="font:500 11px 'Plus Jakarta Sans';color:#8a837a">{{ k.sub }}</div>
+              </div>
+            </sc-for>
+          </div>
+
+          <section style="order:{{ orderForecast }};border:1px solid #ddd8ce;border-radius:4px;background:#fffefb">
+            <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:16px 18px;border-bottom:1px solid #ece8e0">
+              <h2 style="margin:0;font:700 15px 'Plus Jakarta Sans';letter-spacing:-0.2px">İleriye bakış · 12 ay</h2>
+              <span style="font:500 11.5px 'Plus Jakarta Sans';color:#8a837a">Taksit takvimi + son 3 ayın ortalaması</span>
+              <div style="margin-left:auto;display:flex;gap:14px;font:500 11px 'Plus Jakarta Sans';color:#55504a">
+                <span style="display:flex;align-items:center;gap:6px"><i style="width:9px;height:9px;background:#5f6b3a;border-radius:1px;display:block"></i>Gelir</span>
+                <span style="display:flex;align-items:center;gap:6px"><i style="width:9px;height:9px;background:#a2452c;border-radius:1px;display:block"></i>Gider</span>
+                <span style="display:flex;align-items:center;gap:6px"><i style="width:14px;height:2px;background:#b5892b;display:block"></i>Kalan</span>
+              </div>
+            </div>
+
+            <div style="padding:18px 18px 8px;overflow-x:auto">
+              <div style="min-width:640px">
+                <div style="position:relative;height:190px;border-bottom:1px solid #ddd8ce;display:flex;align-items:flex-end;gap:clamp(3px,0.7vw,9px)">
+                  <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible">
+                    <polyline points="{{ balanceLine }}" fill="none" stroke="#b5892b" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linejoin="round" />
+                    <line x1="0" y1="{{ zeroY }}" x2="100" y2="{{ zeroY }}" stroke="#c9c3b8" stroke-width="1" stroke-dasharray="3 3" vector-effect="non-scaling-stroke" />
+                  </svg>
+                  <sc-for list="{{ forecast }}" as="f" hint-placeholder-count="12">
+                    <div onClick="{{ f.go }}" style="flex:1;min-width:0;height:100%;display:flex;align-items:flex-end;justify-content:center;gap:2px;cursor:pointer;background:{{ f.colBg }};position:relative;z-index:1;padding-bottom:0" style-hover="background:#f4f2ed">
+                      <div style="width:42%;max-width:16px;background:#5f6b3a;height:{{ f.incH }}%;border-radius:1px 1px 0 0;opacity:{{ f.op }}"></div>
+                      <div style="width:42%;max-width:16px;background:#a2452c;height:{{ f.expH }}%;border-radius:1px 1px 0 0;opacity:{{ f.op }}"></div>
+                    </div>
+                  </sc-for>
+                </div>
+                <div style="display:flex;gap:clamp(3px,0.7vw,9px);margin-top:8px">
+                  <sc-for list="{{ forecast }}" as="f" hint-placeholder-count="12">
+                    <div style="flex:1;min-width:0;text-align:center;display:flex;flex-direction:column;gap:3px">
+                      <div style="font:600 10px 'Roboto Mono',monospace;color:#55504a;text-transform:uppercase;letter-spacing:0.04em">{{ f.short }}</div>
+                      <div style="font:600 10.5px 'Roboto Mono',monospace;color:{{ f.balColor }};letter-spacing:-0.3px">{{ f.balK }}</div>
+                      <div style="height:3px;background:{{ f.kindBg }};border-radius:2px;margin:1px 3px 0"></div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1px;background:#ece8e0;border-top:1px solid #ece8e0">
+              <sc-for list="{{ forecastNotes }}" as="n" hint-placeholder-count="3">
+                <div style="background:#fffefb;padding:14px 18px;display:flex;flex-direction:column;gap:5px">
+                  <div style="font:500 10px 'Roboto Mono',monospace;color:#8a837a;text-transform:uppercase;letter-spacing:0.09em">{{ n.label }}</div>
+                  <div style="font:700 14px 'Plus Jakarta Sans';color:{{ n.color }};letter-spacing:-0.2px">{{ n.value }}</div>
+                  <div style="font:500 11.5px/1.45 'Plus Jakarta Sans';color:#55504a">{{ n.sub }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </section>
+
+          <div style="order:{{ orderDetail }};display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:clamp(14px,2vw,22px);align-items:start">
+
+            <section style="border:1px solid #ddd8ce;border-radius:4px;background:#fffefb">
+              <div style="display:flex;align-items:baseline;gap:10px;padding:16px 18px;border-bottom:1px solid #ece8e0">
+                <h2 style="margin:0;font:700 15px 'Plus Jakarta Sans';letter-spacing:-0.2px">Kategori limitleri</h2>
+                <span style="margin-left:auto;font:500 11px 'Roboto Mono',monospace;color:#8a837a">{{ monthLabel }}</span>
+              </div>
+              <div style="padding:6px 18px 16px">
+                <sc-for list="{{ catRows }}" as="c" hint-placeholder-count="8">
+                  <div style="border-bottom:1px solid #f2efe8">
+                    <div onClick="{{ c.toggle }}" style="padding:11px 8px;margin:0 -8px;border-radius:3px;display:flex;flex-direction:column;gap:7px;cursor:pointer" style-hover="background:#faf9f5">
+                      <div style="display:flex;align-items:center;gap:9px">
+                        <span style="font-size:13px;width:17px;text-align:center">{{ c.icon }}</span>
+                        <span style="font:600 13px 'Plus Jakarta Sans';flex:1">{{ c.name }}</span>
+                        <span style="font:600 12.5px 'Roboto Mono',monospace;color:{{ c.color }}">{{ c.spent }}</span>
+                        <span style="font:500 11px 'Roboto Mono',monospace;color:#a8a29a">/ {{ c.limit }}</span>
+                        <span style="font:600 13px 'Plus Jakarta Sans';color:{{ c.chevColor }};width:16px;flex:0 0 16px;text-align:center;line-height:1">{{ c.chevron }}</span>
+                      </div>
+                      <div style="display:flex;align-items:center;gap:9px">
+                        <div style="flex:1;height:5px;background:#ece8e0;border-radius:3px;overflow:hidden;position:relative">
+                          <div style="height:100%;width:{{ c.pctW }}%;background:{{ c.barColor }};border-radius:3px"></div>
+                        </div>
+                        <span style="font:500 10px 'Roboto Mono',monospace;color:{{ c.color }};width:38px;text-align:right">{{ c.pctLabel }}</span>
+                      </div>
+                    </div>
+                    <div style="display:{{ c.detailDisplay }};flex-direction:column;gap:1px;padding:2px 0 12px 26px;border-left:1px solid #ece8e0;margin:0 0 4px 8px">
+                      <sc-for list="{{ c.details }}" as="x" hint-placeholder-count="3">
+                        <div style="display:flex;align-items:center;gap:9px;padding:5px 0">
+                          <span style="width:{{ x.indent }};flex:0 0 {{ x.indent }}"></span>
+                          <span style="font:{{ x.font }};color:{{ x.fg }};flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ x.label }}</span>
+                          <div style="width:56px;flex:0 0 56px;height:4px;background:#f2efe8;border-radius:2px;overflow:hidden">
+                            <div style="height:100%;width:{{ x.pctW }}%;background:{{ x.barBg }};border-radius:2px"></div>
+                          </div>
+                          <span style="font:500 11.5px 'Roboto Mono',monospace;color:{{ x.valFg }};width:74px;text-align:right">{{ x.value }}</span>
+                        </div>
+                      </sc-for>
+                      <div style="display:flex;align-items:center;gap:8px;padding-top:8px">
+                        <span style="font:500 10.5px 'Plus Jakarta Sans';color:#8a837a;flex:1">{{ c.detailNote }}</span>
+                        <button onClick="{{ c.edit }}" style="border:1px solid #ddd8ce;background:#faf9f5;border-radius:3px;padding:5px 10px;cursor:pointer;font:600 10.5px 'Plus Jakarta Sans';color:#55504a" style-hover="background:#f0efe8;border-color:#5f6b3a">Bütçede düzenle</button>
+                      </div>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </section>
+
+            <section style="border:1px solid #ddd8ce;border-radius:4px;background:#fffefb">
+              <div style="display:flex;align-items:baseline;gap:10px;padding:16px 18px;border-bottom:1px solid #ece8e0">
+                <h2 style="margin:0;font:700 15px 'Plus Jakarta Sans';letter-spacing:-0.2px">Kişi bazlı</h2>
+                <span style="margin-left:auto;font:500 11px 'Roboto Mono',monospace;color:#8a837a">Gelir katkısı</span>
+              </div>
+              <div style="padding:16px 18px;display:flex;flex-direction:column;gap:18px">
+                <sc-for list="{{ people }}" as="p" hint-placeholder-count="2">
+                  <div style="display:flex;flex-direction:column;gap:9px">
+                    <div style="display:flex;align-items:baseline;gap:10px">
+                      <span style="font:700 13.5px 'Plus Jakarta Sans';letter-spacing:0.02em">{{ p.name }}</span>
+                      <span style="margin-left:auto;font:600 15px 'Roboto Mono',monospace;letter-spacing:-0.4px">{{ p.total }}</span>
+                      <span style="font:500 11px 'Roboto Mono',monospace;color:#8a837a;width:40px;text-align:right">{{ p.pctLabel }}</span>
+                    </div>
+                    <div style="height:6px;background:#ece8e0;border-radius:3px;overflow:hidden">
+                      <div style="height:100%;width:{{ p.pctW }}%;background:{{ p.color }};border-radius:3px"></div>
+                    </div>
+                    <div style="display:flex;flex-wrap:wrap;gap:5px">
+                      <sc-for list="{{ p.items }}" as="i" hint-placeholder-count="4">
+                        <div style="border:1px solid #ece8e0;border-radius:3px;padding:5px 8px;display:flex;gap:7px;align-items:baseline;background:#faf9f5">
+                          <span style="font:500 10.5px 'Plus Jakarta Sans';color:#55504a">{{ i.label }}</span>
+                          <span style="font:600 10.5px 'Roboto Mono',monospace">{{ i.value }}</span>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </div>
+                </sc-for>
+                <div style="border-top:1px solid #ece8e0;padding-top:14px;display:flex;flex-direction:column;gap:9px">
+                  <div style="font:500 10px 'Roboto Mono',monospace;color:#8a837a;text-transform:uppercase;letter-spacing:0.09em">Kişiye yazılı giderler</div>
+                  <sc-for list="{{ personExpense }}" as="e" hint-placeholder-count="2">
+                    <div style="display:flex;align-items:baseline;gap:10px">
+                      <span style="font:600 12.5px 'Plus Jakarta Sans'">{{ e.name }}</span>
+                      <span style="font:500 11px 'Plus Jakarta Sans';color:#8a837a">{{ e.detail }}</span>
+                      <span style="margin-left:auto;font:600 12.5px 'Roboto Mono',monospace;color:#a2452c">{{ e.value }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <section style="order:{{ orderDetail }};border:1px solid #ddd8ce;border-radius:4px;background:#fffefb">
+            <div style="display:flex;align-items:baseline;gap:10px;padding:16px 18px;border-bottom:1px solid #ece8e0">
+              <h2 style="margin:0;font:700 15px 'Plus Jakarta Sans';letter-spacing:-0.2px">Yaklaşan rahatlamalar</h2>
+              <span style="font:500 11.5px 'Plus Jakarta Sans';color:#8a837a">Biten taksitler aylık yükü düşürür</span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:1px;background:#ece8e0">
+              <sc-for list="{{ endingSoon }}" as="e" hint-placeholder-count="4">
+                <div style="background:#fffefb;padding:14px 18px;display:flex;flex-direction:column;gap:6px">
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <i style="width:8px;height:8px;border-radius:1px;background:{{ e.color }};display:block"></i>
+                    <span style="font:500 10px 'Roboto Mono',monospace;color:#8a837a;text-transform:uppercase;letter-spacing:0.08em">{{ e.card }}</span>
+                    <span style="margin-left:auto;font:600 10px 'Roboto Mono',monospace;color:#5f6b3a">{{ e.endLabel }}</span>
+                  </div>
+                  <div style="font:600 13px 'Plus Jakarta Sans';letter-spacing:-0.1px">{{ e.desc }}</div>
+                  <div style="display:flex;align-items:baseline;gap:8px">
+                    <span style="font:600 14px 'Roboto Mono',monospace;letter-spacing:-0.3px">{{ e.monthly }}</span>
+                    <span style="font:500 11px 'Plus Jakarta Sans';color:#8a837a">aylık · {{ e.left }} taksit kaldı</span>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </section>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isButce }}">
+        <div data-screen-label="Aylık Bütçe" style="display:flex;flex-direction:column;gap:clamp(14px,2vw,22px)">
+
+          <sc-if value="{{ monthMissing }}">
+            <div style="border:1px solid #e2d5b4;border-radius:4px;background:#f9f2e0;padding:18px;display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+              <div style="flex:1;min-width:220px">
+                <div style="font:700 14px 'Plus Jakarta Sans';margin-bottom:5px">{{ monthLabel }} için kayıt yok</div>
+                <div style="font:500 12.5px/1.5 'Plus Jakarta Sans';color:#55504a">Taksit takvimi ve son 3 ayın ortalaması kullanılarak doldurulmuş bir taslak oluşturabilirim. Sonra tek tek düzeltirsin.</div>
+              </div>
+              <button onClick="{{ materialize }}" style="border:1px solid #414a24;background:#5f6b3a;color:#fffefb;border-radius:4px;padding:11px 18px;cursor:pointer;font:700 13px 'Plus Jakarta Sans'" style-hover="background:#414a24">Tahminden oluştur</button>
+            </div>
+          </sc-if>
+
+          <div style="display:{{ tableDisplay }};flex-direction:column;gap:clamp(14px,2vw,22px)">
+            <section style="border:1px solid #ddd8ce;border-radius:4px;background:#fffefb;overflow:hidden">
+              <div style="display:flex;align-items:baseline;gap:10px;padding:15px 18px;border-bottom:1px solid #ece8e0">
+                <h2 style="margin:0;font:700 15px 'Plus Jakarta Sans';letter-spacing:-0.2px">Gelir</h2>
+                <span style="margin-left:auto;font:600 15px 'Roboto Mono',monospace;color:#5f6b3a;letter-spacing:-0.4px">{{ incomeTotal }}</span>
+              </div>
+              <div style="overflow-x:auto">
+                <table style="width:100%;min-width:520px;border-collapse:collapse">
+                  <thead>
+                    <tr>
+                      <th style="text-align:left;font:500 10px 'Roboto Mono',monospace;color:#8a837a;text-transform:uppercase;letter-spacing:0.09em;padding:9px 18px;border-bottom:1px solid #ece8e0;background:#faf9f5">Kalem</th>
+                      <th style="text-align:right;font:500 10px 'Roboto Mono',monospace;color:#8a837a;text-transform:uppercase;letter-spacing:0.09em;padding:9px 14px;border-bottom:1px solid #ece8e0;background:#faf9f5;width:150px">Ahmet</th>
+                      <th style="text-align:right;font:500 10px 'Roboto Mono',monospace;color:#8a837a;text-transform:uppercase;letter-spacing:0.09em;padding:9px 14px;border-bottom:1px solid #ece8e0;background:#faf9f5;width:150px">Elif</th>
+                      <th style="text-align:right;font:500 10px 'Roboto Mono',monospace;color:#8a837a;text-transform:uppercase;letter-spacing:0.09em;padding:9px 18px;border-bottom:1px solid #ece8e0;background:#faf9f5;width:130px">Toplam</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <sc-for list="{{ incomeRows }}" as="r" hint-placeholder-count="4">
+                      <tr>
+                        <td style="padding:7px 18px;border-bottom:1px solid #f4f1ea;font:600 13px 'Plus Jakarta Sans'">{{ r.label }}</td>
+                        <td style="padding:7px 14px;border-bottom:1px solid #f4f1ea"><input type="number" step="0.01" value="{{ r.a }}" onChange="{{ r.setA }}" style="width:100%;border:1px solid #e6e1d7;background:#fffefb;border-radius:3px;padding:7px 9px;font:500 12.5px 'Roboto Mono',monospace;color:#1a1815;text-align:right" style-focus="border-color:#5f6b3a;outline:none;background:#fbfaf6" /></td>
+                        <td style="padding:7px 14px;border-bottom:1px solid #f4f1ea"><input type="number" step="0.01" value="{{ r.b }}" onChange="{{ r.setB }}" style="width:100%;border:1px solid #e6e1d7;background:#fffefb;border-radius:3px;padding:7px 9px;font:500 12.5px 'Roboto Mono',monospace;color:#1a1815;text-align:right" style-focus="border-color:#5f6b3a;outline:none;background:#fbfaf6" /></td>
+                        <td style="padding:7px 18px;border-bottom:1px solid #f4f1ea;text-align:right;font:600 13px 'Roboto Mono',monospace">{{ r.total }}</td>
+                      </tr>
+                    </sc-for>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section style="border:1px solid #ddd8ce;border-radius:4px;background:#fffefb;overflow:hidden">
+              <div style="display:flex;align-items:baseline;gap:10px;padding:15px 18px;border-bottom:1px solid #ece8e0">
+                <h2 style="margin:0;font:700 15px 'Plus Jakarta Sans';letter-spacing:-0.2px">Gider</h2>
+                <span style="font:500 11.5px 'Plus Jakarta Sans';color:#8a837a">Kart satırlarında taksit yükü otomatik hesaplanır</span>
+                <span style="margin-left:auto;font:600 15px 'Roboto Mono',monospace;color:#a2452c;letter-spacing:-0.4px">{{ expenseTotal }}</span>
+              </div>
+              <sc-for list="{{ catBlocks }}" as="c" hint-placeholder-count="8">
+                <div>
+                  <div style="display:flex;align-items:center;gap:9px;padding:9px 18px;background:#faf9f5;border-bottom:1px solid #ece8e0;border-top:1px solid #ece8e0">
+                    <span style="font-size:12px">{{ c.icon }}</span>
+                    <span style="font:700 11.5px 'Plus Jakarta Sans';text-transform:uppercase;letter-spacing:0.07em">{{ c.name }}</span>
+                    <span style="margin-left:auto;font:600 12.5px 'Roboto Mono',monospace;color:#55504a">{{ c.total }}</span>
+                    <span style="font:500 10px 'Roboto Mono',monospace;color:#a8a29a">limit</span>
+                    <input type="number" step="100" value="{{ c.limit }}" onChange="{{ c.setLimit }}" style="width:96px;border:1px solid #e6e1d7;background:#fffefb;border-radius:3px;padding:5px 8px;font:500 11.5px 'Roboto Mono',monospace;text-align:right;color:#55504a" style-focus="border-color:#b5892b;outline:none" />
+                  </div>
+                  <sc-for list="{{ c.subs }}" as="s" hint-placeholder-count="2">
+                    <div style="display:flex;align-items:center;gap:12px;padding:7px 18px;border-bottom:1px solid #f4f1ea">
+                      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+                        <span style="font:600 13px 'Plus Jakarta Sans'">{{ s.label }}</span>
+                        <span style="font:500 10.5px 'Roboto Mono',monospace;color:{{ s.hintColor }}">{{ s.hint }}</span>
+                      </div>
+                      <input type="number" step="0.01" value="{{ s.val }}" onChange="{{ s.set }}" style="width:150px;flex:0 0 150px;border:1px solid #e6e1d7;background:#fffefb;border-radius:3px;padding:7px 9px;font:500 12.5px 'Roboto Mono',monospace;color:#1a1815;text-align:right" style-focus="border-color:#a2452c;outline:none;background:#fbfaf6" />
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-for>
+            </section>
+
+            <section style="border:1px solid #ddd8ce;border-radius:4px;background:#fffefb;overflow:hidden">
+              <div style="display:flex;align-items:baseline;gap:10px;padding:15px 18px;border-bottom:1px solid #ece8e0">
+                <h2 style="margin:0;font:700 15px 'Plus Jakarta Sans';letter-spacing:-0.2px">Birikime ayrılan</h2>
+                <span style="margin-left:auto;font:600 15px 'Roboto Mono',monospace;color:#b5892b;letter-spacing:-0.4px">{{ savingsTotal }}</span>
+              </div>
+              <sc-for list="{{ savingsRows }}" as="s" hint-placeholder-count="3">
+                <div style="display:flex;align-items:center;gap:12px;padding:8px 18px;border-bottom:1px solid #f4f1ea">
+                  <span style="flex:1;font:600 13px 'Plus Jakarta Sans'">{{ s.label }}</span>
+                  <input type="number" step="0.01" value="{{ s.val }}" onChange="{{ s.set }}" style="width:150px;flex:0 0 150px;border:1px solid #e6e1d7;background:#fffefb;border-radius:3px;padding:7px 9px;font:500 12.5px 'Roboto Mono',monospace;text-align:right;color:#1a1815" style-focus="border-color:#b5892b;outline:none;background:#fbfaf6" />
+                </div>
+              </sc-for>
+            </section>
+          </div>
+
+          <div style="display:{{ cardsDisplay }};flex-direction:column;gap:12px">
+            <sc-for list="{{ entryCards }}" as="g" hint-placeholder-count="4">
+              <section style="border:1px solid #ddd8ce;border-radius:4px;background:#fffefb;overflow:hidden">
+                <div style="display:flex;align-items:center;gap:9px;padding:12px 14px;border-bottom:1px solid #ece8e0;background:{{ g.headBg }}">
+                  <span style="font-size:13px">{{ g.icon }}</span>
+                  <span style="font:700 12px 'Plus Jakarta Sans';text-transform:uppercase;letter-spacing:0.07em">{{ g.name }}</span>
+                  <span style="margin-left:auto;font:600 13.5px 'Roboto Mono',monospace;color:{{ g.color }};letter-spacing:-0.3px">{{ g.total }}</span>
+                </div>
+                <sc-for list="{{ g.rows }}" as="r" hint-placeholder-count="3">
+                  <div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid #f4f1ea">
+                    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+                      <span style="font:600 12.5px 'Plus Jakarta Sans'">{{ r.label }}</span>
+                      <span style="font:500 10px 'Roboto Mono',monospace;color:{{ r.hintColor }}">{{ r.hint }}</span>
+                    </div>
+                    <input type="number" step="0.01" value="{{ r.val }}" onChange="{{ r.set }}" style="width:118px;flex:0 0 118px;border:1px solid #e6e1d7;background:#fffefb;border-radius:3px;padding:9px;font:500 12.5px 'Roboto Mono',monospace;text-align:right;color:#1a1815" style-focus="border-color:#5f6b3a;outline:none;background:#fbfaf6" />
+                  </div>
+                </sc-for>
+              </section>
+            </sc-for>
+          </div>
+
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:#ddd8ce;border:1px solid #ddd8ce;border-radius:4px;overflow:hidden">
+            <sc-for list="{{ equation }}" as="e" hint-placeholder-count="5">
+              <div style="background:{{ e.bg }};padding:14px 16px;display:flex;flex-direction:column;gap:6px">
+                <div style="font:500 10px 'Roboto Mono',monospace;color:#8a837a;text-transform:uppercase;letter-spacing:0.09em">{{ e.label }}</div>
+                <div style="font:600 clamp(17px,1.8vw,21px) 'Roboto Mono',monospace;letter-spacing:-0.7px;color:{{ e.color }}">{{ e.value }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isHarcama }}">
+        <div data-screen-label="Harcama" style="display:flex;flex-direction:column;gap:clamp(14px,2vw,22px)">
+
+          <section style="border:1px solid #ddd8ce;border-radius:4px;background:#fffefb;overflow:hidden">
+            <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:16px 18px;border-bottom:1px solid #ece8e0">
+              <h2 style="margin:0;font:700 15px 'Plus Jakarta Sans';letter-spacing:-0.2px">Harcama girişi</h2>
+              <span style="font:500 11.5px 'Plus Jakarta Sans';color:#8a837a">{{ txMonthLabel }} · yapıştır, Claude ayıklayıp kategorilere dağıtır</span>
+            </div>
+            <div style="padding:16px 18px;display:flex;flex-direction:column;gap:12px">
+              <div onDragOver="{{ onDragOver }}" onDrop="{{ onDrop }}" style="border:1px dashed {{ dropBd }};border-radius:4px;background:{{ dropBg }};padding:16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+                <div style="flex:1;min-width:200px;display:flex;flex-direction:column;gap:4px">
+                  <span style="font:700 13px 'Plus Jakarta Sans'">Ekstre PDF'i veya fiş fotoğrafı bırak</span>
+                  <span style="font:500 11.5px/1.5 'Plus Jakarta Sans';color:#55504a">Taranmış PDF ve fotoğraflar da olur — sayfalar görüntüye çevrilip okunur. En fazla 6 dosya, 6 sayfa.</span>
+                </div>
+                <label style="border:1px solid #ddd8ce;background:#fffefb;border-radius:4px;padding:9px 14px;cursor:pointer;font:600 12.5px 'Plus Jakarta Sans';color:#55504a;white-space:nowrap" style-hover="background:#f0efe8;border-color:#5f6b3a">
+                  Dosya seç
+                  <input type="file" multiple="{{ true }}" accept=".pdf,image/*" onChange="{{ onFiles }}" style="display:none" />
+                </label>
+              </div>
+              <textarea value="{{ txInput }}" onChange="{{ setTxInput }}" rows="7" placeholder="Banka SMS'i, ekstre satırları ya da elle yaz — her satır bir harcama:&#10;12.09 MIGROS ANKARA 842,30 TL&#10;13.09 SHELL AKARYAKIT 1.450 TL&#10;14.09 getir sipariş 310,50" style="width:100%;resize:vertical;border:1px solid #e6e1d7;background:#fbfaf6;border-radius:4px;padding:12px;font:500 12.5px/1.7 'Roboto Mono',monospace;color:#1a1815" style-focus="border-color:#5f6b3a;outline:none;background:#fffefb"></textarea>
+              <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+                <button onClick="{{ parseTx }}" style="border:1px solid #414a24;background:#5f6b3a;color:#fffefb;border-radius:4px;padding:11px 18px;cursor:pointer;font:700 13px 'Plus Jakarta Sans'" style-hover="background:#414a24">Claude ile ayıkla ve kategorize et</button>
+                <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:180px">
+                  <i style="width:7px;height:7px;border-radius:50%;background:{{ txDotColor }};display:block;flex:0 0 7px"></i>
+                  <span style="font:500 11.5px 'Roboto Mono',monospace;color:{{ txStatusColor }}">{{ txStatus }}</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:#ddd8ce;border:1px solid #ddd8ce;border-radius:4px;overflow:hidden">
+            <sc-for list="{{ txGroups }}" as="g" hint-placeholder-count="4">
+              <div style="background:#fffefb;padding:13px 15px;display:flex;flex-direction:column;gap:6px">
+                <div style="display:flex;align-items:center;gap:7px">
+                  <span style="font-size:12px">{{ g.icon }}</span>
+                  <span style="font:500 10px 'Roboto Mono',monospace;color:#8a837a;text-transform:uppercase;letter-spacing:0.08em">{{ g.name }}</span>
+                </div>
+                <div style="font:600 17px 'Roboto Mono',monospace;letter-spacing:-0.6px;color:{{ g.color }}">{{ g.total }}</div>
+                <div style="font:500 10.5px 'Plus Jakarta Sans';color:#8a837a">{{ g.sub }}</div>
+              </div>
+            </sc-for>
+          </div>
+
+          <section style="border:1px solid #ddd8ce;border-radius:4px;background:#fffefb;overflow:hidden">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:15px 18px;border-bottom:1px solid #ece8e0">
+              <h2 style="margin:0;font:700 15px 'Plus Jakarta Sans';letter-spacing:-0.2px">{{ txCountLabel }}</h2>
+              <span style="font:600 14px 'Roboto Mono',monospace;color:#a2452c;letter-spacing:-0.3px">{{ txTotal }}</span>
+              <button onClick="{{ applyTx }}" style="margin-left:auto;border:1px solid #ddd8ce;background:#faf9f5;border-radius:4px;padding:8px 13px;cursor:pointer;font:600 12px 'Plus Jakarta Sans';color:#55504a" style-hover="background:#eef0e4;border-color:#5f6b3a">Bütçeye yaz</button>
+            </div>
+            <sc-if value="{{ txEmpty }}">
+              <div style="padding:26px 18px;text-align:center;font:500 12.5px/1.6 'Plus Jakarta Sans';color:#8a837a">{{ txEmptyNote }}</div>
+            </sc-if>
+            <sc-for list="{{ txRows }}" as="t" hint-placeholder-count="0">
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 18px;border-bottom:1px solid #f4f1ea">
+                <span style="font:500 11px 'Roboto Mono',monospace;color:#8a837a;width:46px;flex:0 0 46px">{{ t.date }}</span>
+                <span style="font:600 12.5px 'Plus Jakarta Sans';flex:1;min-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.desc }}</span>
+                <select value="{{ t.sub }}" onChange="{{ t.setSub }}" style="width:196px;flex:0 0 196px;border:1px solid #e6e1d7;background:{{ t.selBg }};border-radius:3px;padding:6px 8px;font:500 11.5px 'Plus Jakarta Sans';color:#1a1815" style-focus="border-color:#5f6b3a;outline:none">
+                  <sc-for list="{{ t.options }}" as="o" hint-placeholder-count="0">
+                    <option value="{{ o.value }}">{{ o.label }}</option>
+                  </sc-for>
+                </select>
+                <input type="number" step="0.01" value="{{ t.amount }}" onChange="{{ t.setAmount }}" style="width:112px;flex:0 0 112px;border:1px solid #e6e1d7;background:#fffefb;border-radius:3px;padding:6px 8px;font:500 12px 'Roboto Mono',monospace;text-align:right;color:#1a1815" style-focus="border-color:#a2452c;outline:none" />
+                <button onClick="{{ t.remove }}" style="border:0;background:transparent;cursor:pointer;font:400 16px 'Plus Jakarta Sans';color:#a8a29a;line-height:1;padding:2px 4px" style-hover="color:#a2452c">×</button>
+              </div>
+            </sc-for>
+            <div style="padding:12px 18px;font:500 11px/1.55 'Plus Jakarta Sans';color:#8a837a">Kategori kutusundan düzelttiğin her satırı Claude bir daha aynı şekilde eşleştirir. "Bütçeye yaz" seçili ayın gider kalemlerini bu listeye göre yeniden toplar.</div>
+          </section>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isTaksit }}">
+        <div data-screen-label="Taksitler" style="display:flex;flex-direction:column;gap:clamp(14px,2vw,22px)">
+
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1px;background:#ddd8ce;border:1px solid #ddd8ce;border-radius:4px;overflow:hidden">
+            <sc-for list="{{ cardSummary }}" as="c" hint-placeholder-count="5">
+              <div style="background:#fffefb;padding:14px 16px;display:flex;flex-direction:column;gap:7px">
+                <div style="display:flex;align-items:center;gap:7px">
+                  <i style="width:8px;height:8px;border-radius:1px;background:{{ c.color }};display:block"></i>
+                  <span style="font:500 10px 'Roboto Mono',monospace;color:#8a837a;text-transform:uppercase;letter-spacing:0.08em">{{ c.name }}</span>
+                </div>
+                <div style="font:600 clamp(17px,1.8vw,21px) 'Roboto Mono',monospace;letter-spacing:-0.7px">{{ c.thisMonth }}</div>
+                <div style="font:500 11px 'Plus Jakarta Sans';color:#55504a">{{ c.sub }}</div>
+              </div>
+            </sc-for>
+          </div>
+
+          <section style="display:{{ calendarDisplay }};flex-direction:column;border:1px solid #ddd8ce;border-radius:4px;background:#fffefb;overflow:hidden">
+            <div style="display:flex;align-items:baseline;gap:10px;padding:16px 18px;border-bottom:1px solid #ece8e0">
+              <h2 style="margin:0;font:700 15px 'Plus Jakarta Sans';letter-spacing:-0.2px">Taksit takvimi</h2>
+              <span style="font:500 11.5px 'Plus Jakarta Sans';color:#8a837a">Hangi ay hangi karta ne düşüyor</span>
+            </div>
+            <div style="overflow-x:auto">
+              <table style="width:100%;min-width:620px;border-collapse:collapse">
+                <thead>
+                  <tr>
+                    <th style="text-align:left;font:500 10px 'Roboto Mono',monospace;color:#8a837a;text-transform:uppercase;letter-spacing:0.09em;padding:10px 18px;background:#faf9f5;border-bottom:1px solid #ece8e0">Ay</th>
+                    <sc-for list="{{ cards }}" as="c" hint-placeholder-count="4">
+                      <th style="text-align:right;font:500 10px 'Roboto Mono',monospace;color:#8a837a;text-transform:uppercase;letter-spacing:0.06em;padding:10px 12px;background:#faf9f5;border-bottom:1px solid #ece8e0">{{ c.short }}</th>
+                    </sc-for>
+                    <th style="text-align:right;font:600 10px 'Roboto Mono',monospace;color:#1a1815;text-transform:uppercase;letter-spacing:0.09em;padding:10px 18px;background:#f2f0e8;border-bottom:1px solid #ece8e0">Toplam</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <sc-for list="{{ calendarRows }}" as="r" hint-placeholder-count="12">
+                    <tr onClick="{{ r.go }}" style="cursor:pointer;background:{{ r.rowBg }}" style-hover="background:#f6f4ee">
+                      <td style="padding:9px 18px;border-bottom:1px solid #f4f1ea;font:600 12.5px 'Plus Jakarta Sans';white-space:nowrap">
+                        <span style="display:inline-block;width:6px;height:6px;border-radius:1px;background:{{ r.dot }};margin-right:8px;vertical-align:middle"></span>{{ r.label }}
+                      </td>
+                      <sc-for list="{{ r.cells }}" as="x" hint-placeholder-count="4">
+                        <td style="padding:9px 12px;border-bottom:1px solid #f4f1ea;text-align:right;font:500 12px 'Roboto Mono',monospace;color:{{ x.fg }};background:{{ x.bg }}">{{ x.value }}</td>
+                      </sc-for>
+                      <td style="padding:9px 18px;border-bottom:1px solid #f4f1ea;text-align:right;font:600 12.5px 'Roboto Mono',monospace;background:#faf9f5">{{ r.total }}</td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section style="display:{{ timelineDisplay }};flex-direction:column;border:1px solid #ddd8ce;border-radius:4px;background:#fffefb;overflow:hidden">
+            <div style="display:flex;align-items:baseline;gap:10px;padding:16px 18px;border-bottom:1px solid #ece8e0;flex-wrap:wrap">
+              <h2 style="margin:0;font:700 15px 'Plus Jakarta Sans';letter-spacing:-0.2px">Zaman çizelgesi</h2>
+              <span style="font:500 11.5px 'Plus Jakarta Sans';color:#8a837a">Her taksitin başı ve sonu · {{ timelineSpan }}</span>
+              <button onClick="{{ openInstallment }}" style="margin-left:auto;border:1px solid #ddd8ce;background:#faf9f5;border-radius:4px;padding:8px 13px;cursor:pointer;font:600 12px 'Plus Jakarta Sans';color:#55504a" style-hover="background:#f0efe8;border-color:#b5892b">+ Taksit ekle</button>
+            </div>
+            <div style="overflow-x:auto;padding:14px 18px 18px">
+              <div style="min-width:660px">
+                <div style="display:flex;gap:12px;padding-left:min(38%,300px);margin-bottom:6px">
+                  <sc-for list="{{ timelineTicks }}" as="t" hint-placeholder-count="8">
+                    <div style="flex:1;min-width:0;text-align:left;font:500 9.5px 'Roboto Mono',monospace;color:#a8a29a;text-transform:uppercase;letter-spacing:0.04em">{{ t.label }}</div>
+                  </sc-for>
+                </div>
+                <sc-for list="{{ ganttGroups }}" as="g" hint-placeholder-count="4">
+                  <div style="margin-bottom:14px">
+                    <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #ece8e0;margin-bottom:4px">
+                      <i style="width:8px;height:8px;border-radius:1px;background:{{ g.color }};display:block"></i>
+                      <span style="font:700 11.5px 'Plus Jakarta Sans';text-transform:uppercase;letter-spacing:0.07em">{{ g.name }}</span>
+                      <span style="margin-left:auto;font:600 12px 'Roboto Mono',monospace;color:#55504a">{{ g.remaining }} kalan borç</span>
+                    </div>
+                    <sc-for list="{{ g.rows }}" as="r" hint-placeholder-count="4">
+                      <div style="display:flex;align-items:center;gap:12px;padding:4px 0">
+                        <div style="width:min(38%,300px);flex:0 0 min(38%,300px);display:flex;align-items:baseline;gap:8px;min-width:0">
+                          <span style="font:600 12px 'Plus Jakarta Sans';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;color:{{ r.fg }}">{{ r.desc }}</span>
+                          <span style="font:500 11px 'Roboto Mono',monospace;color:#8a837a;white-space:nowrap">{{ r.monthly }}</span>
+                        </div>
+                        <div style="flex:1;min-width:0;height:20px;position:relative;background:#f6f4ee;border-radius:2px">
+                          <div style="position:absolute;top:0;bottom:0;left:{{ nowLeft }}%;width:1px;background:#b5892b;z-index:2"></div>
+                          <div style="position:absolute;top:3px;bottom:3px;left:{{ r.left }}%;width:{{ r.width }}%;background:{{ r.barBg }};border-radius:2px;display:flex;align-items:center;justify-content:center;overflow:hidden">
+                            <span style="font:600 9.5px 'Roboto Mono',monospace;color:{{ r.barFg }};white-space:nowrap">{{ r.count }}x</span>
+                          </div>
+                        </div>
+                      </div>
+                    </sc-for>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </section>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isBirikim }}">
+        <div data-screen-label="Birikim" style="display:flex;flex-direction:column;gap:clamp(14px,2vw,22px)">
+
+          <section style="border:1px solid #ddd8ce;border-radius:4px;background:#fffefb;overflow:hidden">
+            <div style="display:flex;gap:18px;flex-wrap:wrap;padding:18px;align-items:flex-end">
+              <div style="flex:1;min-width:220px;display:flex;flex-direction:column;gap:8px">
+                <div style="font:500 10px 'Roboto Mono',monospace;color:#8a837a;text-transform:uppercase;letter-spacing:0.09em">Toplam portföy</div>
+                <div style="font:600 clamp(26px,3.4vw,38px) 'Roboto Mono',monospace;letter-spacing:-1.4px;line-height:1">{{ portfolioTotal }} ₺</div>
+                <div style="font:500 12px 'Plus Jakarta Sans';color:#55504a">{{ portfolioBreak }}</div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span style="font:500 10px 'Roboto Mono',monospace;color:#8a837a;text-transform:uppercase;letter-spacing:0.09em">Hedef</span>
+                  <input type="number" step="10000" value="{{ goal }}" onChange="{{ setGoal }}" style="width:150px;border:1px solid #e6e1d7;background:#fffefb;border-radius:3px;padding:7px 9px;font:500 12.5px 'Roboto Mono',monospace;text-align:right" style-focus="border-color:#b5892b;outline:none" />
+                </div>
+                <div style="font:600 13px 'Roboto Mono',monospace;color:#b5892b">{{ goalPctLabel }} tamamlandı · {{ goalRemain }} ₺ kaldı</div>
+              </div>
+            </div>
+            <div style="height:8px;background:#ece8e0">
+              <div style="height:100%;width:{{ goalPctW }}%;background:linear-gradient(90deg,#b5892b,#d4ad55)"></div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1px;background:#ece8e0;border-top:1px solid #ece8e0">
+              <sc-for list="{{ savingsKpis }}" as="k" hint-placeholder-count="3">
+                <div style="background:#fffefb;padding:14px 18px;display:flex;flex-direction:column;gap:5px">
+                  <div style="font:500 10px 'Roboto Mono',monospace;color:#8a837a;text-transform:uppercase;letter-spacing:0.09em">{{ k.label }}</div>
+                  <div style="font:600 16px 'Roboto Mono',monospace;letter-spacing:-0.5px;color:{{ k.color }}">{{ k.value }}</div>
+                  <div style="font:500 11.5px/1.45 'Plus Jakarta Sans';color:#55504a">{{ k.sub }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </section>
+
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:clamp(14px,2vw,22px);align-items:start">
+            <section style="border:1px solid #ddd8ce;border-radius:4px;background:#fffefb;overflow:hidden">
+              <div style="display:flex;align-items:baseline;gap:10px;padding:15px 18px 12px">
+                <h2 style="margin:0;font:700 15px 'Plus Jakarta Sans';letter-spacing:-0.2px">Altın</h2>
+                <span style="margin-left:auto;font:600 14px 'Roboto Mono',monospace;color:#b5892b">{{ goldTotal }}</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:0 18px 12px;border-bottom:1px solid #ece8e0">
+                <i style="width:7px;height:7px;border-radius:50%;background:{{ priceDotColor }};display:block;flex:0 0 7px"></i>
+                <span style="font:500 11px 'Roboto Mono',monospace;color:#8a837a;flex:1;min-width:130px">{{ priceStatusText }}</span>
+                <button onClick="{{ refreshPrices }}" style="border:1px solid #ddd8ce;background:#faf9f5;border-radius:4px;padding:6px 11px;cursor:pointer;font:600 11.5px 'Plus Jakarta Sans';color:#55504a" style-hover="background:#f0efe8;border-color:#b5892b">↻ Yenile</button>
+                <button onClick="{{ toggleManual }}" style="border:1px solid {{ manualBd }};background:{{ manualBg }};border-radius:4px;padding:6px 11px;cursor:pointer;font:600 11.5px 'Plus Jakarta Sans';color:{{ manualFg }}" style-hover="background:#f0efe8">Elle düzelt</button>
+              </div>
+              <div style="overflow-x:auto">
+                <table style="width:100%;min-width:420px;border-collapse:collapse">
+                  <thead>
+                    <tr>
+                      <th style="text-align:left;font:500 10px 'Roboto Mono',monospace;color:#8a837a;text-transform:uppercase;letter-spacing:0.08em;padding:9px 18px;background:#faf9f5;border-bottom:1px solid #ece8e0">Tür</th>
+                      <th style="text-align:right;font:500 10px 'Roboto Mono',monospace;color:#8a837a;text-transform:uppercase;letter-spacing:0.08em;padding:9px 10px;background:#faf9f5;border-bottom:1px solid #ece8e0;width:92px">Adet</th>
+                      <th style="text-align:right;font:500 10px 'Roboto Mono',monospace;color:#8a837a;text-transform:uppercase;letter-spacing:0.08em;padding:9px 10px;background:#faf9f5;border-bottom:1px solid #ece8e0;width:110px">Birim ₺</th>
+                      <th style="text-align:right;font:500 10px 'Roboto Mono',monospace;color:#8a837a;text-transform:uppercase;letter-spacing:0.08em;padding:9px 18px;background:#faf9f5;border-bottom:1px solid #ece8e0">Değer</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <sc-for list="{{ goldRows }}" as="g" hint-placeholder-count="6">
+                      <tr>
+                        <td style="padding:6px 18px;border-bottom:1px solid #f4f1ea;font:600 12.5px 'Plus Jakarta Sans'">{{ g.label }}</td>
+                        <td style="padding:6px 10px;border-bottom:1px solid #f4f1ea"><input type="number" step="0.01" value="{{ g.amount }}" onChange="{{ g.setAmount }}" style="width:100%;border:1px solid #e6e1d7;background:#fffefb;border-radius:3px;padding:6px 8px;font:500 12px 'Roboto Mono',monospace;text-align:right" style-focus="border-color:#b5892b;outline:none" /></td>
+                        <td style="padding:6px 10px;border-bottom:1px solid #f4f1ea;text-align:right">
+                          <span style="display:{{ priceTextDisplay }};font:500 12px 'Roboto Mono',monospace;color:#55504a">{{ g.priceF }}</span>
+                          <input type="number" step="1" value="{{ g.price }}" onChange="{{ g.setPrice }}" style="display:{{ priceInputDisplay }};width:100%;border:1px solid #e6e1d7;background:#fffefb;border-radius:3px;padding:6px 8px;font:500 12px 'Roboto Mono',monospace;text-align:right" style-focus="border-color:#b5892b;outline:none" />
+                        </td>
+                        <td style="padding:6px 18px;border-bottom:1px solid #f4f1ea;text-align:right;font:600 12.5px 'Roboto Mono',monospace">{{ g.value }}</td>
+                      </tr>
+                    </sc-for>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <div style="display:flex;flex-direction:column;gap:clamp(14px,2vw,22px)">
+              <section style="border:1px solid #ddd8ce;border-radius:4px;background:#fffefb;overflow:hidden">
+                <div style="display:flex;align-items:baseline;gap:10px;padding:15px 18px;border-bottom:1px solid #ece8e0">
+                  <h2 style="margin:0;font:700 15px 'Plus Jakarta Sans';letter-spacing:-0.2px">Döviz</h2>
+                  <span style="margin-left:auto;font:600 14px 'Roboto Mono',monospace;color:#5f6b3a">{{ fxTotal }}</span>
+                </div>
+                <sc-for list="{{ fxRows }}" as="f" hint-placeholder-count="3">
+                  <div style="display:flex;align-items:center;gap:10px;padding:8px 18px;border-bottom:1px solid #f4f1ea">
+                    <span style="flex:1;font:600 12.5px 'Plus Jakarta Sans'">{{ f.label }}</span>
+                    <input type="number" step="10" value="{{ f.amount }}" onChange="{{ f.setAmount }}" style="width:92px;border:1px solid #e6e1d7;background:#fffefb;border-radius:3px;padding:6px 8px;font:500 12px 'Roboto Mono',monospace;text-align:right" style-focus="border-color:#5f6b3a;outline:none" />
+                    <span style="font:500 11px 'Roboto Mono',monospace;color:#a8a29a">×</span>
+                    <span style="display:{{ f.textDisplay }};width:86px;text-align:right;font:500 12px 'Roboto Mono',monospace;color:#55504a">{{ f.rateF }}</span>
+                    <input type="number" step="0.01" value="{{ f.rate }}" onChange="{{ f.setRate }}" style="display:{{ f.inputDisplay }};width:86px;border:1px solid #e6e1d7;background:#fffefb;border-radius:3px;padding:6px 8px;font:500 12px 'Roboto Mono',monospace;text-align:right" style-focus="border-color:#5f6b3a;outline:none" />
+                    <span style="width:104px;text-align:right;font:600 12.5px 'Roboto Mono',monospace">{{ f.value }}</span>
+                  </div>
+                </sc-for>
+              </section>
+
+              <section style="border:1px solid #ddd8ce;border-radius:4px;background:#fffefb;overflow:hidden">
+                <div style="display:flex;align-items:baseline;gap:10px;padding:15px 18px;border-bottom:1px solid #ece8e0">
+                  <h2 style="margin:0;font:700 15px 'Plus Jakarta Sans';letter-spacing:-0.2px">Alım defteri</h2>
+                  <button onClick="{{ openPurchase }}" style="margin-left:auto;border:1px solid #ddd8ce;background:#faf9f5;border-radius:4px;padding:7px 12px;cursor:pointer;font:600 12px 'Plus Jakarta Sans';color:#55504a" style-hover="background:#f0efe8;border-color:#b5892b">+ Alım</button>
+                </div>
+                <sc-for list="{{ purchases }}" as="p" hint-placeholder-count="2">
+                  <div style="display:flex;align-items:center;gap:10px;padding:9px 18px;border-bottom:1px solid #f4f1ea">
+                    <span style="font:500 11px 'Roboto Mono',monospace;color:#8a837a;width:78px">{{ p.date }}</span>
+                    <span style="flex:1;font:600 12.5px 'Plus Jakarta Sans'">{{ p.type }}</span>
+                    <span style="font:500 11.5px 'Roboto Mono',monospace;color:#55504a">{{ p.amount }}</span>
+                    <span style="font:600 12.5px 'Roboto Mono',monospace;width:96px;text-align:right">{{ p.cost }}</span>
+                    <span style="font:500 10.5px 'Roboto Mono',monospace;color:#a8a29a;width:74px;text-align:right">{{ p.unit }}</span>
+                  </div>
+                </sc-for>
+              </section>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isYillik }}">
+        <div data-screen-label="Yıllık" style="display:flex;flex-direction:column;gap:clamp(14px,2vw,22px)">
+
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:1px;background:#ddd8ce;border:1px solid #ddd8ce;border-radius:4px;overflow:hidden">
+            <sc-for list="{{ yearKpis }}" as="k" hint-placeholder-count="4">
+              <div style="background:#fffefb;padding:14px 16px;display:flex;flex-direction:column;gap:6px">
+                <div style="font:500 10px 'Roboto Mono',monospace;color:#8a837a;text-transform:uppercase;letter-spacing:0.09em">{{ k.label }}</div>
+                <div style="font:600 clamp(18px,1.9vw,22px) 'Roboto Mono',monospace;letter-spacing:-0.7px;color:{{ k.color }}">{{ k.value }}</div>
+                <div style="font:500 11px 'Plus Jakarta Sans';color:#8a837a">{{ k.sub }}</div>
+              </div>
+            </sc-for>
+          </div>
+
+          <section style="border:1px solid #ddd8ce;border-radius:4px;background:#fffefb;overflow:hidden">
+            <div style="display:flex;align-items:baseline;gap:10px;padding:16px 18px;border-bottom:1px solid #ece8e0;flex-wrap:wrap">
+              <h2 style="margin:0;font:700 15px 'Plus Jakarta Sans';letter-spacing:-0.2px">Ay ay akış</h2>
+              <span style="font:500 11.5px 'Plus Jakarta Sans';color:#8a837a">Gerçekleşen aylar koyu, tahminler açık</span>
+            </div>
+            <div style="overflow-x:auto">
+              <table style="width:100%;min-width:760px;border-collapse:collapse">
+                <thead>
+                  <tr>
+                    <sc-for list="{{ yearHeads }}" as="h" hint-placeholder-count="7">
+                      <th style="font:500 10px 'Roboto Mono',monospace;color:#8a837a;text-transform:uppercase;letter-spacing:0.08em;padding:10px 14px;background:#faf9f5;border-bottom:1px solid #ece8e0;text-align:{{ h.align }};white-space:nowrap">{{ h.label }}</th>
+                    </sc-for>
+                  </tr>
+                </thead>
+                <tbody>
+                  <sc-for list="{{ yearRows }}" as="r" hint-placeholder-count="14">
+                    <tr onClick="{{ r.go }}" style="cursor:pointer;background:{{ r.bg }}" style-hover="background:#f6f4ee">
+                      <td style="padding:8px 14px;border-bottom:1px solid #f4f1ea;font:600 12.5px 'Plus Jakarta Sans';white-space:nowrap;color:{{ r.fg }}">{{ r.label }}</td>
+                      <td style="padding:8px 14px;border-bottom:1px solid #f4f1ea;font:500 10px 'Roboto Mono',monospace;text-transform:uppercase;letter-spacing:0.07em;color:{{ r.kindFg }}">{{ r.kind }}</td>
+                      <td style="padding:8px 14px;border-bottom:1px solid #f4f1ea;text-align:right;font:500 12px 'Roboto Mono',monospace;color:#5f6b3a">{{ r.income }}</td>
+                      <td style="padding:8px 14px;border-bottom:1px solid #f4f1ea;text-align:right;font:500 12px 'Roboto Mono',monospace;color:#a2452c">{{ r.expense }}</td>
+                      <td style="padding:8px 14px;border-bottom:1px solid #f4f1ea;text-align:right;font:500 12px 'Roboto Mono',monospace;color:#8a5f2b">{{ r.cards }}</td>
+                      <td style="padding:8px 14px;border-bottom:1px solid #f4f1ea;text-align:right;font:500 12px 'Roboto Mono',monospace;color:#b5892b">{{ r.savings }}</td>
+                      <td style="padding:8px 14px;border-bottom:1px solid #f4f1ea;text-align:right;font:600 12.5px 'Roboto Mono',monospace;color:{{ r.netColor }}">{{ r.net }}</td>
+                      <td style="padding:8px 14px;border-bottom:1px solid #f4f1ea;width:120px">
+                        <div style="height:5px;background:#ece8e0;border-radius:3px;overflow:hidden"><div style="height:100%;width:{{ r.barW }}%;background:{{ r.barBg }};border-radius:3px"></div></div>
+                      </td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section style="border:1px solid #ddd8ce;border-radius:4px;background:#fffefb;overflow:hidden">
+            <div style="padding:16px 18px;border-bottom:1px solid #ece8e0">
+              <h2 style="margin:0;font:700 15px 'Plus Jakarta Sans';letter-spacing:-0.2px">Yıl karşılaştırma</h2>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1px;background:#ece8e0">
+              <sc-for list="{{ yearCompare }}" as="y" hint-placeholder-count="2">
+                <div style="background:#fffefb;padding:16px 18px;display:flex;flex-direction:column;gap:10px">
+                  <div style="display:flex;align-items:baseline;gap:8px">
+                    <span style="font:800 18px 'Plus Jakarta Sans';letter-spacing:-0.4px">{{ y.year }}</span>
+                    <span style="font:500 10.5px 'Roboto Mono',monospace;color:#8a837a;text-transform:uppercase;letter-spacing:0.07em">{{ y.scope }}</span>
+                  </div>
+                  <sc-for list="{{ y.lines }}" as="l" hint-placeholder-count="4">
+                    <div style="display:flex;align-items:baseline;gap:10px">
+                      <span style="font:500 12px 'Plus Jakarta Sans';color:#55504a">{{ l.label }}</span>
+                      <span style="flex:1;border-bottom:1px dotted #ddd8ce;height:1px"></span>
+                      <span style="font:600 12.5px 'Roboto Mono',monospace;color:{{ l.color }}">{{ l.value }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-for>
+            </div>
+          </section>
+        </div>
+      </sc-if>
+    </main>
+
+    <nav style="display:{{ bottomDisplay }};position:fixed;left:0;right:0;bottom:0;z-index:40;grid-template-columns:repeat(6,1fr);background:#fffefbf5;backdrop-filter:blur(10px);border-top:1px solid #ddd8ce;padding:6px 4px 10px">
+      <sc-for list="{{ navItems }}" as="n" hint-placeholder-count="5">
+        <button onClick="{{ n.go }}" style="border:0;background:transparent;display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 2px;cursor:pointer;min-height:52px;color:{{ n.tabFg }}">
+          <span style="font-size:17px;line-height:1">{{ n.icon }}</span>
+          <span style="font:600 10px 'Plus Jakarta Sans';letter-spacing:-0.1px">{{ n.label }}</span>
+          <span style="width:16px;height:2px;border-radius:1px;background:{{ n.tabBd }};display:block"></span>
+        </button>
+      </sc-for>
+    </nav>
   </div>
 
-  <!-- Küçük modal (form) -->
-  <div id="modal" class="modal" hidden>
-    <div class="modal-box">
-      <h3 id="modalTitle">Ekle</h3>
-      <div id="modalBody"></div>
-      <div class="modal-actions">
-        <button id="modalCancel" class="btn-ghost">İptal</button>
-        <button id="modalSave" class="btn-primary">Kaydet</button>
+  <button onClick="{{ openQuick }}" style="position:fixed;right:clamp(16px,2.4vw,28px);bottom:{{ fabBottom }};z-index:45;width:56px;height:56px;border-radius:4px;border:1px solid #414a24;background:#5f6b3a;color:#fffefb;cursor:pointer;font:400 26px 'Plus Jakarta Sans';display:flex;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(26,24,21,0.18)" style-hover="background:#414a24">+</button>
+
+  <sc-if value="{{ sheetOpen }}">
+    <div onClick="{{ closeSheet }}" style="position:fixed;inset:0;z-index:60;background:rgba(26,24,21,0.42);display:flex;align-items:flex-end;justify-content:center;padding:0">
+      <div onClick="{{ stop }}" style="width:100%;max-width:520px;background:#fffefb;border:1px solid #ddd8ce;border-radius:4px 4px 0 0;max-height:92vh;overflow-y:auto;margin:auto auto 0">
+        <div style="display:flex;align-items:center;gap:10px;padding:16px 18px;border-bottom:1px solid #ece8e0;position:sticky;top:0;background:#fffefb">
+          <h3 style="margin:0;font:700 15px 'Plus Jakarta Sans';letter-spacing:-0.2px">{{ sheetTitle }}</h3>
+          <button onClick="{{ closeSheet }}" style="margin-left:auto;border:0;background:transparent;cursor:pointer;font:400 20px 'Plus Jakarta Sans';color:#8a837a;line-height:1">×</button>
+        </div>
+        <div style="padding:16px 18px;display:flex;flex-direction:column;gap:14px">
+          <sc-if value="{{ isQuickSheet }}" hint-placeholder-val="{{ true }}">
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#ddd8ce;border:1px solid #ddd8ce;border-radius:4px;overflow:hidden">
+              <sc-for list="{{ sheetKinds }}" as="k" hint-placeholder-count="4">
+                <button onClick="{{ k.pick }}" style="border:0;background:{{ k.bg }};color:{{ k.fg }};padding:11px 4px;cursor:pointer;font:600 12px 'Plus Jakarta Sans'">{{ k.label }}</button>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-for list="{{ sheetFields }}" as="f" hint-placeholder-count="3">
+            <label style="display:flex;flex-direction:column;gap:6px">
+              <span style="font:500 10px 'Roboto Mono',monospace;color:#8a837a;text-transform:uppercase;letter-spacing:0.09em">{{ f.label }}</span>
+              <sc-if value="{{ f.isSelect }}">
+                <select value="{{ f.value }}" onChange="{{ f.set }}" style="border:1px solid #e6e1d7;background:#fffefb;border-radius:3px;padding:10px;font:500 13px 'Plus Jakarta Sans';color:#1a1815" style-focus="border-color:#5f6b3a;outline:none">
+                  <sc-for list="{{ f.options }}" as="o" hint-placeholder-count="4">
+                    <option value="{{ o.value }}">{{ o.label }}</option>
+                  </sc-for>
+                </select>
+              </sc-if>
+              <sc-if value="{{ f.isInput }}">
+                <input type="{{ f.type }}" step="0.01" value="{{ f.value }}" onChange="{{ f.set }}" placeholder="{{ f.ph }}" style="border:1px solid #e6e1d7;background:#fffefb;border-radius:3px;padding:10px;font:500 13px 'Roboto Mono',monospace;color:#1a1815" style-focus="border-color:#5f6b3a;outline:none" />
+              </sc-if>
+            </label>
+          </sc-for>
+          <div style="font:500 11.5px/1.5 'Plus Jakarta Sans';color:#8a837a">{{ sheetNote }}</div>
+          <div style="display:flex;gap:8px;padding-top:2px">
+            <button onClick="{{ closeSheet }}" style="flex:0 0 auto;border:1px solid #ddd8ce;background:#faf9f5;color:#55504a;border-radius:4px;padding:12px 18px;cursor:pointer;font:600 13px 'Plus Jakarta Sans'" style-hover="background:#f0efe8">Vazgeç</button>
+            <button onClick="{{ submitSheet }}" style="flex:1;border:1px solid #414a24;background:#5f6b3a;color:#fffefb;border-radius:4px;padding:12px 18px;cursor:pointer;font:700 13px 'Plus Jakarta Sans'" style-hover="background:#414a24">{{ sheetCta }}</button>
+          </div>
+        </div>
       </div>
     </div>
-  </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;navStyle&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;auto&quot;,&quot;sidebar&quot;,&quot;top&quot;,&quot;bottom&quot;],&quot;default&quot;:&quot;auto&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Düzen&quot;},&quot;ozetSirasi&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;tahmin-once&quot;,&quot;durum-once&quot;],&quot;default&quot;:&quot;durum-once&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Düzen&quot;},&quot;butceGorunum&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;auto&quot;,&quot;tablo&quot;,&quot;kart&quot;],&quot;default&quot;:&quot;auto&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Düzen&quot;},&quot;taksitGorunum&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;ikisi&quot;,&quot;takvim&quot;,&quot;zaman&quot;],&quot;default&quot;:&quot;ikisi&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Düzen&quot;}}">
+const KEY = 'aile-butce-v1';
+const VER = 4;
+const TX_START = '2026-09';
+const MN = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
+const MS = ['OCA','ŞUB','MAR','NİS','MAY','HAZ','TEM','AĞU','EYL','EKİ','KAS','ARA'];
+const TODAY = '2026-08';
 
-  <script src="seed.js"></script>
-  <script src="app.js"></script>
+const OLIVE = '#5f6b3a', OLIVE_D = '#414a24', GOLD = '#b5892b', RUST = '#a2452c', INK = '#1a1815', MUT = '#55504a', DIM = '#8a837a';
+
+const fmt = n => Math.round(n || 0).toLocaleString('tr-TR');
+const fmtK = n => {
+  const v = n || 0, a = Math.abs(v);
+  if (a >= 1000) return (v < 0 ? '−' : '') + (a / 1000).toFixed(a >= 100000 ? 0 : 1).replace('.', ',') + 'B';
+  return fmt(v);
+};
+const sgn = n => (n >= 0 ? '' : '−') + fmt(Math.abs(n));
+const idx = k => { const [y, m] = k.split('-').map(Number); return y * 12 + (m - 1); };
+const key = i => Math.floor(i / 12) + '-' + String((i % 12) + 1).padStart(2, '0');
+const shift = (k, n) => key(idx(k) + n);
+const label = k => { const [y, m] = k.split('-').map(Number); return MN[m - 1] + ' ' + y; };
+const shortLabel = k => { const [y, m] = k.split('-').map(Number); return MS[m - 1] + (m === 1 ? ' ' + String(y).slice(2) : ''); };
+
+function seed() {
+  return {
+    version: VER,
+    people: ['AHMET', 'ELİF'],
+    incomeItems: ['Temel Maaş', 'Sabit Ek Ödeme', 'Teşvik', 'Nöbet & İcap'],
+    categories: [
+      { id: 'konut', name: 'Konut', icon: '🏠', limit: 92000, subs: ['Ev Kredisi', 'Aidat'] },
+      { id: 'faturalar', name: 'Faturalar', icon: '💡', limit: 3500, subs: ['Elektrik', 'Su', 'Doğalgaz', 'İnternet', 'Telefon'] },
+      { id: 'krediKarti', name: 'Kredi Kartı', icon: '💳', limit: 175000, subs: ['Kredi Kartı 1 (Elif)', 'Kredi Kartı 2 (Ziraat)', 'Kredi Kartı 3 (Vakıf)', 'Kredi Kartı 4 (YapıKredi)'] },
+      { id: 'bakici', name: 'Bakıcı', icon: '👶', limit: 36000, subs: ['Bakıcı Parası'] },
+      { id: 'egitim', name: 'Eğitim', icon: '🎓', limit: 19040, subs: ['KYK Ödemesi', 'Dershane'] },
+      { id: 'arac', name: 'Araç', icon: '🚗', limit: 6000, subs: ['Servis/Bakım'] },
+      { id: 'vergiler', name: 'Vergiler', icon: '🏛️', limit: 5000, subs: ['MTV', 'Ev Vergisi'] },
+      { id: 'market', name: 'Market & Gıda', icon: '🛒', limit: 20000, subs: ['Market', 'Manav / Kasap', 'Su & İçecek'] },
+      { id: 'yemek', name: 'Yeme-İçme', icon: '🍽️', limit: 6000, subs: ['Restoran / Kafe', 'Sipariş'] },
+      { id: 'giyim', name: 'Giyim', icon: '👕', limit: 8000, subs: ['Giyim', 'Ayakkabı & Aksesuar'] },
+      { id: 'ulasim', name: 'Ulaşım', icon: '⛽', limit: 9000, subs: ['Akaryakıt', 'Toplu Taşıma / Taksi', 'Otopark & HGS'] },
+      { id: 'saglik', name: 'Sağlık', icon: '💊', limit: 4000, subs: ['Eczane', 'Doktor & Tahlil'] },
+      { id: 'abonelik', name: 'Abonelik & Eğlence', icon: '🎬', limit: 2500, subs: ['Dijital Abonelik', 'Eğlence & Hobi'] },
+      { id: 'diger', name: 'Diğer', icon: '📦', limit: 15000, subs: ['Beklenmeyen Giderler'] }
+    ],
+    transactions: {},
+    txMemory: {},
+    savingsItems: ['Birikim', 'Acil Durum Fonu', 'Yatırım Fonu'],
+    cardSubMap: { elif: 'Kredi Kartı 1 (Elif)', ziraat: 'Kredi Kartı 2 (Ziraat)', vakif: 'Kredi Kartı 3 (Vakıf)', yapikredi: 'Kredi Kartı 4 (YapıKredi)' },
+    months: {
+      '2026-06': {
+        carryover: 62689.14,
+        income: { 'Temel Maaş': { 'AHMET': 95947.87, 'ELİF': 86471.4 }, 'Sabit Ek Ödeme': { 'AHMET': 42861.64, 'ELİF': 32384.34 }, 'Teşvik': { 'AHMET': 44042.9, 'ELİF': 20307.62 }, 'Nöbet & İcap': { 'AHMET': 9123.31, 'ELİF': 0 } },
+        expenses: { 'Ev Kredisi': 87000, 'Aidat': 3000, 'Elektrik': 475, 'Su': 425.37, 'Doğalgaz': 557.73, 'İnternet': 1000, 'Telefon': 447.08, 'Kredi Kartı 1 (Elif)': 32434.01, 'Kredi Kartı 2 (Ziraat)': 66195.99, 'Kredi Kartı 3 (Vakıf)': 55685.72, 'Kredi Kartı 4 (YapıKredi)': 17716.5, 'Bakıcı Parası': 33000, 'KYK Ödemesi': 470, 'Dershane': 18570, 'Servis/Bakım': 0, 'MTV': 0, 'Ev Vergisi': 0, 'Beklenmeyen Giderler': 11500 },
+        savings: { 'Birikim': 0, 'Acil Durum Fonu': 0, 'Yatırım Fonu': 0 }
+      },
+      '2026-07': {
+        carryover: 66301.87,
+        income: { 'Temel Maaş': { 'AHMET': 114415.41, 'ELİF': 96242.75 }, 'Sabit Ek Ödeme': { 'AHMET': 42861.64, 'ELİF': 32384.34 }, 'Teşvik': { 'AHMET': 66445.2, 'ELİF': 19863.87 }, 'Nöbet & İcap': { 'AHMET': 14544.48, 'ELİF': 0 } },
+        expenses: { 'Ev Kredisi': 87000, 'Aidat': 3000, 'Elektrik': 545, 'Su': 541.74, 'Doğalgaz': 685.48, 'İnternet': 1000, 'Telefon': 447.08, 'Kredi Kartı 1 (Elif)': 49200, 'Kredi Kartı 2 (Ziraat)': 85275, 'Kredi Kartı 3 (Vakıf)': 31275.7, 'Kredi Kartı 4 (YapıKredi)': 18643.18, 'Bakıcı Parası': 36000, 'KYK Ödemesi': 470, 'Dershane': 18570, 'Servis/Bakım': 0, 'MTV': 4681, 'Ev Vergisi': 0, 'Beklenmeyen Giderler': 26400 },
+        savings: { 'Birikim': 0, 'Acil Durum Fonu': 0, 'Yatırım Fonu': 0 }
+      },
+      '2026-08': {
+        carryover: 96193.35,
+        income: { 'Temel Maaş': { 'AHMET': 109720.59, 'ELİF': 96569.17 }, 'Sabit Ek Ödeme': { 'AHMET': 48656.57, 'ELİF': 36762.73 }, 'Teşvik': { 'AHMET': 80422.74, 'ELİF': 27893.92 }, 'Nöbet & İcap': { 'AHMET': 17411.45, 'ELİF': 0 } },
+        expenses: { 'Ev Kredisi': 87000, 'Aidat': 4500, 'Elektrik': 609, 'Su': 493.18, 'Doğalgaz': 0, 'İnternet': 1000, 'Telefon': 0, 'Kredi Kartı 1 (Elif)': 53933.54, 'Kredi Kartı 2 (Ziraat)': 86595.24, 'Kredi Kartı 3 (Vakıf)': 21138.44, 'Kredi Kartı 4 (YapıKredi)': 22275.85, 'Bakıcı Parası': 36000, 'KYK Ödemesi': 470, 'Dershane': 18570, 'Servis/Bakım': 0, 'MTV': 0, 'Ev Vergisi': 0, 'Beklenmeyen Giderler': 10000 },
+        savings: { 'Birikim': 173000, 'Acil Durum Fonu': 0, 'Yatırım Fonu': 0 }
+      }
+    },
+    installmentCards: [
+      { id: 'ziraat', name: 'Ziraat Bankası', short: 'Ziraat', color: '#1e5fbf' },
+      { id: 'vakif', name: 'VakıfBank', short: 'Vakıf', color: '#8b5cf6' },
+      { id: 'yapikredi', name: 'Yapı Kredi', short: 'YapıKredi', color: '#dc2626' },
+      { id: 'elif', name: 'Elif', short: 'Elif', color: '#16a34a' }
+    ],
+    installments: [
+      { card: 'ziraat', desc: 'Amazon (IYZICO)', total: 116982.66, count: 9, monthly: 12998.07, start: '2026-01' },
+      { card: 'ziraat', desc: 'Sompo Japan (Sigorta)', total: 8739.01, count: 3, monthly: 2913, start: '2026-02' },
+      { card: 'ziraat', desc: 'Sompo Japan (Sigorta)', total: 8396.1, count: 3, monthly: 2798.7, start: '2026-02' },
+      { card: 'ziraat', desc: 'Brisa (SanalPOS)', total: 6200, count: 5, monthly: 1240, start: '2026-03' },
+      { card: 'ziraat', desc: 'SGK Ödeme (Sonradan Taksit)', total: 12138.53, count: 4, monthly: 3034.63, start: '2026-04' },
+      { card: 'ziraat', desc: 'Global Design (Sonradan Taksit)', total: 12000, count: 4, monthly: 3000, start: '2026-04' },
+      { card: 'ziraat', desc: 'Adil Işık', total: 5999.95, count: 3, monthly: 1999.99, start: '2026-07' },
+      { card: 'ziraat', desc: 'A City Ankara Outlet', total: 9988.2, count: 4, monthly: 2497.05, start: '2026-07' },
+      { card: 'ziraat', desc: 'Macun Ford Servis', total: 16886.68, count: 3, monthly: 5628.9, start: '2026-07' },
+      { card: 'ziraat', desc: 'Sompo Japan (Sigorta)', total: 8704.96, count: 3, monthly: 2901.66, start: '2026-07' },
+      { card: 'ziraat', desc: 'Sompo Japan (Sigorta)', total: 14113.94, count: 3, monthly: 4704.66, start: '2026-07' },
+      { card: 'ziraat', desc: 'ETSTUR (Ziraat)', total: 54000, count: 6, monthly: 9000, start: '2026-08' },
+      { card: 'vakif', desc: 'Sompo Sigorta AŞ', total: 15524, count: 8, monthly: 1940.5, start: '2025-07' },
+      { card: 'vakif', desc: 'hbomax.com (İyzico)', total: 2298, count: 12, monthly: 191.5, start: '2025-10' },
+      { card: 'vakif', desc: 'MediaMarkt (Sanal)', total: 10599, count: 3, monthly: 3533, start: '2026-01' },
+      { card: 'vakif', desc: 'Idefix.com', total: 6498, count: 4, monthly: 1624.5, start: '2026-01' },
+      { card: 'vakif', desc: 'Amazon.com.tr (İyzico)', total: 6999, count: 6, monthly: 1166.5, start: '2026-01' },
+      { card: 'vakif', desc: 'Setur Servis Turistik', total: 39921, count: 3, monthly: 13307, start: '2026-05' },
+      { card: 'vakif', desc: 'MediaMarkt (Ankara)', total: 8797.5, count: 3, monthly: 2932.5, start: '2026-05' },
+      { card: 'yapikredi', desc: 'HepsiBurada (29.11.25)', total: 69499, count: 9, monthly: 7722.11, start: '2025-12' },
+      { card: 'yapikredi', desc: 'HepsiBurada (24.12.25)', total: 25885.8, count: 9, monthly: 2876.2, start: '2026-01' },
+      { card: 'yapikredi', desc: 'HepsiBurada (09.02.26)', total: 1756.82, count: 3, monthly: 585.61, start: '2026-03' },
+      { card: 'yapikredi', desc: 'HepsiBurada (15.05.26)', total: 42709.24, count: 6, monthly: 7118.2, start: '2026-06' },
+      { card: 'yapikredi', desc: 'HepsiBurada (22.07.26)', total: 23015.35, count: 7, monthly: 3287.91, start: '2026-08' },
+      { card: 'elif', desc: 'ETSTUR (Tatil)', total: 73150, count: 3, monthly: 24383.33, start: '2026-03' },
+      { card: 'elif', desc: 'Mango (Armada)', total: 3402.99, count: 2, monthly: 1701.5, start: '2026-02' },
+      { card: 'elif', desc: 'Mavi (Forum)', total: 5199.97, count: 4, monthly: 1299.99, start: '2026-03' },
+      { card: 'elif', desc: 'Antares Gülsa (Sonradan Taksit)', total: 3463.85, count: 4, monthly: 865.96, start: '2026-05' }
+    ],
+    goal: 2000000,
+    gold: {
+      order: ['Çeyrek', 'Yarım', 'Ata / Tam', '22 Ayar Gram', '24 Ayar Gram', 'Külçe Altın'],
+      portfolio: { 'Çeyrek': 12, 'Yarım': 1, 'Ata / Tam': 0, '22 Ayar Gram': 3, '24 Ayar Gram': 4, 'Külçe Altın': 175 },
+      prices: { 'Çeyrek': 11400, 'Yarım': 22800, 'Ata / Tam': 45600, '22 Ayar Gram': 6320, '24 Ayar Gram': 6900, 'Külçe Altın': 6900 },
+      purchases: [
+        { date: '2026-08-19', type: 'Külçe Altın', amount: 10, cost: 68000 },
+        { date: '2026-08-20', type: 'Külçe Altın', amount: 15, cost: 103500 }
+      ]
+    },
+    fx: [
+      { code: 'USD', label: 'Amerikan Doları', amount: 0, rate: 42.5 },
+      { code: 'EUR', label: 'Euro', amount: 0, rate: 49.8 },
+      { code: 'TRY', label: 'Vadeli TL Hesap', amount: 0, rate: 1 }
+    ]
+  };
+}
+
+class Component extends DCLogic {
+  constructor(p) {
+    super(p);
+    this.state = { data: this.load(), tab: 'ozet', month: TODAY, bp: this.bpOf(), sheet: null, form: {}, manual: false, openCat: null, txInput: '', txBusy: false, txStatus: 'Metni yapıştır, Claude ayıklasın', txState: 'idle', priceStatus: { state: 'idle', text: 'Fiyatlar bekleniyor…' } };
+  }
+  load() {
+    try {
+      const s = localStorage.getItem(KEY);
+      if (s) { const d = JSON.parse(s); if (d && d.version === VER) return d; }
+    } catch (e) {}
+    return seed();
+  }
+  save(d) { this.setState({ data: d }); try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {} }
+  bpOf() { const w = typeof window !== 'undefined' ? window.innerWidth : 1280; return w < 720 ? 'phone' : w < 1120 ? 'tablet' : 'desktop'; }
+  componentDidMount() {
+    this._r = () => { const b = this.bpOf(); if (b !== this.state.bp) this.setState({ bp: b }); };
+    window.addEventListener('resize', this._r);
+    this.fetchPrices();
+  }
+  componentWillUnmount() { if (this._r) window.removeEventListener('resize', this._r); this._dead = true; }
+
+  fetchPrices() {
+    const self = this;
+    this.setState({ priceStatus: { state: 'loading', text: 'Güncel fiyatlar çekiliyor…' } });
+    const num = v => { if (v === null || v === undefined) return 0; const s = String(v).trim().replace(/\s/g, '').replace(/\.(?=\d{3}\b)/g, '').replace(',', '.'); const n = parseFloat(s); return isNaN(n) ? 0 : n; };
+    const srcs = [
+      { name: 'truncgil', url: 'https://finans.truncgil.com/today.json' },
+      { name: 'genelpara', url: 'https://api.genelpara.com/embed/altin.json' }
+    ];
+    const val = (flat, keys) => {
+      for (let i = 0; i < keys.length; i++) {
+        const v = flat[keys[i]];
+        if (v === null || v === undefined) continue;
+        if (typeof v === 'object') { const x = num(v.Selling || v.selling || v.Satis || v.satis || v.Buying || v.alis); if (x) return x; }
+        else { const x = num(v); if (x) return x; }
+      }
+      return 0;
+    };
+    const tryNext = i => {
+      if (self._dead) return;
+      if (i >= srcs.length) { self.setState({ priceStatus: { state: 'off', text: 'Otomatik fiyat alınamadı · son kayıtlı fiyatlar' } }); return; }
+      const src = srcs[i];
+      fetch(src.url, { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error('http'); return r.json(); }).then(j => {
+        if (self._dead) return;
+        const flat = {};
+        Object.keys(j).forEach(k => { flat[k.toLowerCase().replace(/[\s_]/g, '-')] = j[k]; });
+        const gram = val(flat, ['gram-altin', 'gramaltin', 'ga', 'gram-altın', 'gram']);
+        if (!gram) throw new Error('parse');
+        const ceyrek = val(flat, ['ceyrek-altin', 'çeyrek-altin', 'c']) || Math.round(gram * 1.603);
+        const yarim = val(flat, ['yarim-altin', 'yarım-altin', 'y']) || Math.round(ceyrek * 2);
+        const tam = val(flat, ['tam-altin', 'ata-altin', 't', 'ata']) || Math.round(ceyrek * 4);
+        const usd = val(flat, ['usd', 'dolar', 'usdtry']);
+        const eur = val(flat, ['eur', 'euro', 'eurtry']);
+        const x = JSON.parse(JSON.stringify(self.state.data));
+        x.gold.prices['24 Ayar Gram'] = Math.round(gram);
+        x.gold.prices['Külçe Altın'] = Math.round(gram);
+        x.gold.prices['22 Ayar Gram'] = Math.round(gram * 0.916);
+        x.gold.prices['Çeyrek'] = Math.round(ceyrek);
+        x.gold.prices['Yarım'] = Math.round(yarim);
+        x.gold.prices['Ata / Tam'] = Math.round(tam);
+        if (usd) { const f = x.fx.find(z => z.code === 'USD'); if (f) f.rate = usd; }
+        if (eur) { const f = x.fx.find(z => z.code === 'EUR'); if (f) f.rate = eur; }
+        x.gold.updated = new Date().toISOString();
+        x.gold.source = src.name;
+        self.save(x);
+        const t = new Date();
+        self.setState({ priceStatus: { state: 'ok', text: 'Otomatik · ' + String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0') + ' · ' + src.name } });
+      }).catch(() => tryNext(i + 1));
+    };
+    tryNext(0);
+  }
+
+  // ---- derived helpers ----
+  cardLoad(mk) {
+    const out = {}; const i = idx(mk);
+    this.state.data.installmentCards.forEach(c => { out[c.id] = 0; });
+    this.state.data.installments.forEach(t => {
+      const s = idx(t.start);
+      if (i >= s && i < s + t.count) out[t.card] = (out[t.card] || 0) + t.monthly;
+    });
+    return out;
+  }
+  monthTotals(mk) {
+    const m = this.state.data.months[mk];
+    if (!m) return null;
+    let inc = 0; Object.keys(m.income || {}).forEach(k => Object.keys(m.income[k]).forEach(p => { inc += +m.income[k][p] || 0; }));
+    let exp = 0; Object.keys(m.expenses || {}).forEach(k => { exp += +m.expenses[k] || 0; });
+    let sav = 0; Object.keys(m.savings || {}).forEach(k => { sav += +m.savings[k] || 0; });
+    const carry = +m.carryover || 0;
+    return { carry: carry, income: inc, expense: exp, savings: sav, net: carry + inc - exp - sav, actual: true };
+  }
+  actualKeys() { return Object.keys(this.state.data.months).sort(); }
+  avgIncome() {
+    const d = this.state.data, ks = this.actualKeys().slice(-3), out = {};
+    d.incomeItems.forEach(it => {
+      out[it] = {};
+      d.people.forEach(p => {
+        let s = 0, n = 0;
+        ks.forEach(k => { const v = d.months[k].income[it]; if (v) { s += +v[p] || 0; n++; } });
+        out[it][p] = n ? s / n : 0;
+      });
+    });
+    return out;
+  }
+  avgExpenses() {
+    const d = this.state.data, ks = this.actualKeys().slice(-3), out = {};
+    d.categories.forEach(c => c.subs.forEach(s => {
+      let sum = 0, n = 0;
+      ks.forEach(k => { const v = d.months[k].expenses[s]; if (v !== undefined) { sum += +v || 0; n++; } });
+      out[s] = n ? sum / n : 0;
+    }));
+    return out;
+  }
+  draftMonth(mk) {
+    const d = this.state.data, ai = this.avgIncome(), ae = this.avgExpenses(), cl = this.cardLoad(mk);
+    const income = {}; d.incomeItems.forEach(it => { income[it] = {}; d.people.forEach(p => { income[it][p] = Math.round(ai[it][p]); }); });
+    const expenses = {};
+    d.categories.forEach(c => c.subs.forEach(s => { expenses[s] = Math.round(ae[s] || 0); }));
+    Object.keys(d.cardSubMap).forEach(cid => { expenses[d.cardSubMap[cid]] = Math.round(cl[cid] || 0); });
+    const savings = {}; d.savingsItems.forEach(s => { savings[s] = 0; });
+    return { carryover: 0, income: income, expenses: expenses, savings: savings, draft: true };
+  }
+  projection(n) {
+    const d = this.state.data, ks = this.actualKeys(), out = [];
+    let bal = 0;
+    ks.forEach(k => { const t = this.monthTotals(k); out.push({ k: k, t: t }); bal = t.net; });
+    const last = ks[ks.length - 1];
+    for (let i = 1; i <= n; i++) {
+      const mk = shift(last, i);
+      const have = d.months[mk];
+      let t;
+      if (have) { t = this.monthTotals(mk); t.carry = bal; t.net = bal + t.income - t.expense - t.savings; }
+      else {
+        const dm = this.draftMonth(mk);
+        let inc = 0; Object.keys(dm.income).forEach(it => d.people.forEach(p => { inc += dm.income[it][p]; }));
+        let exp = 0; Object.keys(dm.expenses).forEach(s => { exp += dm.expenses[s]; });
+        t = { carry: bal, income: inc, expense: exp, savings: 0, net: bal + inc - exp, actual: false };
+      }
+      out.push({ k: mk, t: t });
+      bal = t.net;
+    }
+    return out;
+  }
+  goldValue() {
+    const g = this.state.data.gold;
+    return g.order.reduce((s, t) => s + (+g.portfolio[t] || 0) * (+g.prices[t] || 0), 0);
+  }
+  fxValue() { return this.state.data.fx.reduce((s, f) => s + (+f.amount || 0) * (+f.rate || 0), 0); }
+  savedCash() { return this.actualKeys().reduce((s, k) => { const m = this.state.data.months[k]; return s + Object.keys(m.savings || {}).reduce((a, x) => a + (+m.savings[x] || 0), 0); }, 0); }
+
+  // ---- mutations ----
+  ensure(mk) {
+    const d = JSON.parse(JSON.stringify(this.state.data));
+    if (!d.months[mk]) { const dm = this.draftMonth(mk); const prev = this.projection(18).find(x => x.k === mk); dm.carryover = prev ? Math.round(prev.t.carry) : 0; delete dm.draft; d.months[mk] = dm; }
+    return d;
+  }
+  setIncome(mk, item, person, v) { const d = this.ensure(mk); if (!d.months[mk].income[item]) d.months[mk].income[item] = {}; d.months[mk].income[item][person] = v; this.save(d); }
+  setExpense(mk, sub, v) { const d = this.ensure(mk); d.months[mk].expenses[sub] = v; this.save(d); }
+  setSaving(mk, item, v) { const d = this.ensure(mk); d.months[mk].savings[item] = v; this.save(d); }
+  setLimit(cid, v) { const d = JSON.parse(JSON.stringify(this.state.data)); const c = d.categories.find(x => x.id === cid); if (c) c.limit = v; this.save(d); }
+  num(e) { const v = parseFloat(String(e.target.value).replace(',', '.')); return isNaN(v) ? 0 : v; }
+
+  txMonth() { const m = this.state.month; return idx(m) < idx(TX_START) ? TX_START : m; }
+  txList(mk) { return (this.state.data.transactions || {})[mk] || []; }
+  allSubs() { return this.state.data.categories.reduce((a, c) => a.concat(c.subs.map(s => ({ value: s, label: c.name + ' · ' + s }))), []); }
+  normDesc(s) { return String(s || '').toLowerCase().replace(/[0-9]/g, '').replace(/[^a-zçğıöşü ]/g, ' ').replace(/\s+/g, ' ').trim().split(' ').slice(0, 2).join(' '); }
+
+  async fileToImage(file, maxPx) {
+    const url = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => rej(new Error('dosya okunamadı')); fr.readAsDataURL(file); });
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('görsel açılamadı')); i.src = url; });
+    const lim = maxPx || 1600;
+    const sc = Math.min(1, lim / Math.max(img.width, img.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.width * sc); c.height = Math.round(img.height * sc);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    return { media_type: 'image/jpeg', data: c.toDataURL('image/jpeg', 0.75).split(',')[1] };
+  }
+
+  async readPdf(file) {
+    const lib = window.pdfjsLib;
+    if (!lib) throw new Error('PDF okuyucu yüklenemedi');
+    lib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    const buf = await file.arrayBuffer();
+    const pdf = await lib.getDocument({ data: buf }).promise;
+    let text = '', images = [];
+    const n = Math.min(pdf.numPages, 6);
+    for (let i = 1; i <= n; i++) {
+      const page = await pdf.getPage(i);
+      let t = '';
+      try { const tc = await page.getTextContent(); t = tc.items.map(x => x.str).join(' ').replace(/\s+/g, ' ').trim(); } catch (e) {}
+      if (t.length > 80) { text += t + '\n'; continue; }
+      if (images.length >= 4) continue;
+      this.setState({ txStatus: 'Sayfa ' + i + ' görüntüye çevriliyor…' });
+      const vp = page.getViewport({ scale: 1.8 });
+      const c = document.createElement('canvas');
+      c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+      await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+      const sc = Math.min(1, 1700 / Math.max(c.width, c.height));
+      let out = c;
+      if (sc < 1) { const c2 = document.createElement('canvas'); c2.width = Math.round(c.width * sc); c2.height = Math.round(c.height * sc); c2.getContext('2d').drawImage(c, 0, 0, c2.width, c2.height); out = c2; }
+      images.push({ media_type: 'image/jpeg', data: out.toDataURL('image/jpeg', 0.72).split(',')[1] });
+    }
+    return { text: text, images: images };
+  }
+
+  async handleFiles(files) {
+    const list = Array.from(files || []).slice(0, 6);
+    if (!list.length || this.state.txBusy) return;
+    this.setState({ txBusy: true, txState: 'loading', txStatus: list.length + ' dosya okunuyor…' });
+    try {
+      let text = '', images = [];
+      for (let i = 0; i < list.length; i++) {
+        const file = list[i];
+        if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
+          const r = await this.readPdf(file);
+          text += r.text; images = images.concat(r.images);
+        } else if (/^image\//.test(file.type)) {
+          images.push(await this.fileToImage(file));
+        } else {
+          text += (await file.text()) + '\n';
+        }
+      }
+      images = images.slice(0, 5);
+      if (!text.trim() && !images.length) throw new Error('dosyada okunacak içerik bulunamadı');
+      if (text.trim()) this.setState({ txInput: text.trim().slice(0, 14000) });
+      this.setState({ txBusy: false });
+      await this.parseTx({ text: text.trim(), images: images });
+    } catch (e) {
+      this.setState({ txBusy: false, txState: 'off', txStatus: 'Dosya okunamadı: ' + (e && e.message ? e.message : 'bilinmeyen hata') });
+    }
+  }
+
+  async parseTx(extra) {
+    const ex = extra || {};
+    const imgs = ex.images || [];
+    const raw = (ex.text !== undefined ? ex.text : String(this.state.txInput || '')).trim();
+    if (!raw && !imgs.length) { this.setState({ txStatus: 'Önce metin yapıştır ya da dosya bırak', txState: 'off' }); return; }
+    if (this.state.txBusy) return;
+    const mk = this.txMonth(), d = this.state.data;
+    this.setState({ txBusy: true, txState: 'loading', txStatus: imgs.length ? 'Claude ' + imgs.length + ' sayfayı görüntüden okuyor…' : 'Claude harcamaları ayıklıyor…' });
+    const catalog = d.categories.map(c => '- ' + c.name + ': ' + c.subs.join(' | ')).join('\n');
+    const mem = Object.keys(d.txMemory || {}).slice(0, 60).map(k => k + ' => ' + d.txMemory[k]).join('\n');
+    const system = 'Sen bir Türk aile bütçesi asistanısın. Verilen serbest metindeki harcama satırlarını ayıklayıp SADECE JSON dizisi döndürürsün. Açıklama, kod bloğu veya ek metin yazma.\n\nKullanılabilir alt kalemler (alt kalem adını harfi harfine yaz):\n' + catalog + '\n\nHer öğe şu alanlara sahip olmalı: {"date":"GG.AA","desc":"kısa işyeri adı","amount":sayı,"sub":"alt kalem adı"}\nKurallar: amount daima pozitif ondalık sayı (Türkçe binlik ayırıcıları temizle). Tarih yoksa boş bırak. Eşleşen alt kalem yoksa "Beklenmeyen Giderler" kullan. Aynı satırı bölmeden bir öğe üret. Görsel verildiyse ekstre/fiş görüntüsündeki tabloyu satır satır oku; ara toplam, devir, faiz, asgari ödeme, son ödeme tarihi gibi satırları atla, yalnızca gerçek harcama hareketlerini al. Taksitli işlemlerde o aya düşen tutarı yaz.' + (mem ? '\n\nKullanıcının önceki düzeltmeleri (bunlara uy):\n' + mem : '');
+    try {
+      const head = 'Ay: ' + label(mk) + '\n\n' + (raw ? 'Harcama metni:\n' + raw : 'Metin yok — harcamaları ekteki görüntülerden oku.');
+      const content = imgs.length
+        ? imgs.map(im => ({ type: 'image', source: { type: 'base64', media_type: im.media_type, data: im.data } })).concat([{ type: 'text', text: head }])
+        : head;
+      const out = await window.claude.complete({ model: 'claude-haiku-4-5', max_tokens: 8000, system: system, messages: [{ role: 'user', content: content }] });
+      const m = String(out).match(/\[[\s\S]*\]/);
+      const arr = JSON.parse(m ? m[0] : out);
+      if (!Array.isArray(arr) || !arr.length) throw new Error('boş sonuç');
+      const valid = {}; this.allSubs().forEach(o => { valid[o.value] = true; });
+      const x = JSON.parse(JSON.stringify(this.state.data));
+      if (!x.transactions) x.transactions = {};
+      if (!x.transactions[mk]) x.transactions[mk] = [];
+      let n = 0;
+      arr.forEach(t => {
+        const amt = Math.abs(parseFloat(String(t.amount).replace(/\./g, '').replace(',', '.')) || 0);
+        if (!amt) return;
+        const sub = valid[t.sub] ? t.sub : 'Beklenmeyen Giderler';
+        x.transactions[mk].push({ id: 't' + Date.now() + '-' + n, date: String(t.date || '').slice(0, 5), desc: String(t.desc || 'Harcama').slice(0, 60), amount: amt, sub: sub });
+        n++;
+      });
+      this.save(x);
+      this.setState({ txBusy: false, txInput: '', txState: 'ok', txStatus: n + ' harcama eklendi · kategorileri kontrol et' });
+    } catch (e) {
+      this.setState({ txBusy: false, txState: 'off', txStatus: 'Ayıklanamadı: ' + (e && e.message ? e.message : 'bilinmeyen hata') });
+    }
+  }
+
+  renderVals() {
+    const d = this.state.data, bp = this.state.bp, mk = this.state.month, P = this.props;
+    const navStyle = P.navStyle && P.navStyle !== 'auto' ? P.navStyle : (bp === 'phone' ? 'bottom' : bp === 'tablet' ? 'top' : 'sidebar');
+    const entryStyle = P.butceGorunum && P.butceGorunum !== 'auto' ? P.butceGorunum : (bp === 'phone' ? 'kart' : 'tablo');
+    const taksitView = P.taksitGorunum || 'ikisi';
+    const forecastFirst = (P.ozetSirasi || 'tahmin-once') === 'tahmin-once';
+
+    const tabs = [
+      { id: 'ozet', label: 'Özet', icon: '◎' },
+      { id: 'butce', label: 'Bütçe', icon: '▤' },
+      { id: 'harcama', label: 'Harcama', icon: '✎' },
+      { id: 'taksit', label: 'Taksit', icon: '▦' },
+      { id: 'birikim', label: 'Birikim', icon: '◆' },
+      { id: 'yillik', label: 'Yıllık', icon: '▬' }
+    ];
+    const titles = { ozet: 'Özet', butce: 'Aylık Bütçe', harcama: 'Harcama Kaydı', taksit: 'Taksitler', birikim: 'Birikim & Portföy', yillik: 'Yıllık Akış' };
+    const proj = this.projection(14);
+    const projMap = {}; proj.forEach(x => { projMap[x.k] = x.t; });
+    const cur = projMap[mk] || null;
+    const monthMissing = !d.months[mk];
+    const cl = this.cardLoad(mk);
+
+    const navHints = { taksit: fmtK(Object.keys(cl).reduce((s, k) => s + cl[k], 0)), birikim: fmtK(this.goldValue() + this.fxValue()) };
+    const navItems = tabs.map(t => ({
+      label: t.label, icon: t.icon, hint: navHints[t.id] || '',
+      go: () => this.setState({ tab: t.id }),
+      bg: this.state.tab === t.id ? '#eef0e4' : 'transparent',
+      fg: this.state.tab === t.id ? OLIVE_D : MUT,
+      bd: this.state.tab === t.id ? '#dbe0c6' : 'transparent',
+      tabFg: this.state.tab === t.id ? OLIVE_D : DIM,
+      tabBd: this.state.tab === t.id ? OLIVE : 'transparent'
+    }));
+
+    // KPIs
+    const kpis = cur ? [
+      { label: 'Devir', value: fmt(cur.carry), color: INK, sub: shortLabel(shift(mk, -1)) + ' sonu' },
+      { label: 'Gelir', value: fmt(cur.income), color: OLIVE, sub: cur.actual ? 'gerçekleşen' : 'tahmin' },
+      { label: 'Gider', value: fmt(cur.expense), color: RUST, sub: 'kart yükü ' + fmtK(Object.keys(cl).reduce((s, k) => s + cl[k], 0)) },
+      { label: 'Birikime', value: fmt(cur.savings), color: GOLD, sub: cur.income ? Math.round(cur.savings / cur.income * 100) + '% gelirin' : '—' },
+      { label: 'Ay sonu kalan', value: sgn(cur.net), color: cur.net < 0 ? RUST : OLIVE_D, sub: cur.net < 0 ? 'açık var' : 'devreden' }
+    ] : [];
+
+    // forecast chart
+    const maxV = Math.max.apply(null, proj.map(x => Math.max(x.t.income, x.t.expense)).concat([1]));
+    const bals = proj.map(x => x.t.net);
+    const bMax = Math.max.apply(null, bals.concat([0])), bMin = Math.min.apply(null, bals.concat([0]));
+    const span = (bMax - bMin) || 1;
+    const yOf = v => 8 + (bMax - v) / span * 84;
+    const forecast = proj.map((x, i) => ({
+      short: shortLabel(x.k), incH: Math.max(1, x.t.income / maxV * 100), expH: Math.max(1, x.t.expense / maxV * 100),
+      op: x.t.actual ? 1 : 0.55, balK: fmtK(x.t.net), balColor: x.t.net < 0 ? RUST : INK,
+      kindBg: x.t.actual ? OLIVE_D : '#dcd7cc', colBg: x.k === mk ? '#f4f2ed' : 'transparent',
+      go: () => this.setState({ month: x.k, tab: 'butce' })
+    }));
+    const balanceLine = proj.map((x, i) => (i / (proj.length - 1) * 100).toFixed(2) + ',' + yOf(x.t.net).toFixed(2)).join(' ');
+    const firstNeg = proj.find(x => x.t.net < 0);
+    const lowest = proj.reduce((a, b) => (b.t.net < a.t.net ? b : a), proj[0]);
+    const horizon = proj[proj.length - 1];
+    const relief = (() => {
+      const now = Object.keys(cl).reduce((s, k) => s + cl[k], 0);
+      const later = (() => { const c = this.cardLoad(shift(TODAY, 6)); return Object.keys(c).reduce((s, k) => s + c[k], 0); })();
+      return now - later;
+    })();
+    const forecastNotes = [
+      { label: 'İlk açık ay', value: firstNeg ? label(firstNeg.k) : 'Yok', color: firstNeg ? RUST : OLIVE, sub: firstNeg ? sgn(firstNeg.t.net) + ' ₺ ile kapanıyor' : '12 ay boyunca bakiye pozitif kalıyor' },
+      { label: 'En düşük bakiye', value: sgn(lowest.t.net) + ' ₺', color: lowest.t.net < 0 ? RUST : INK, sub: label(lowest.k) + ' · bu ayı yastık ile karşıla' },
+      { label: '6 ay sonra taksit rahatlaması', value: '−' + fmt(relief) + ' ₺/ay', color: OLIVE, sub: 'biten taksitler aylık kart yükünü bu kadar düşürüyor' },
+      { label: horizon ? label(horizon.k) + ' bakiyesi' : '—', value: horizon ? sgn(horizon.t.net) + ' ₺' : '—', color: horizon && horizon.t.net < 0 ? RUST : OLIVE_D, sub: 'mevcut gidişat aynen sürerse' }
+    ];
+
+    // categories
+    const mData = d.months[mk] || this.draftMonth(mk);
+    const openCat = this.state.openCat;
+    const catRows = d.categories.map(c => {
+      const spent = c.subs.reduce((s, x) => s + (+mData.expenses[x] || 0), 0);
+      const lim = +c.limit || 0;
+      const pct = lim ? spent / lim * 100 : 0;
+      const open = openCat === c.id;
+      const details = [];
+      c.subs.forEach(s => {
+        const v = +mData.expenses[s] || 0;
+        details.push({ label: s, value: fmt(v), indent: '0px', font: "600 12px 'Plus Jakarta Sans'", fg: INK, valFg: INK, pctW: spent ? Math.min(100, v / spent * 100) : 0, barBg: OLIVE });
+        const cid = Object.keys(d.cardSubMap).find(k => d.cardSubMap[k] === s);
+        if (cid) {
+          d.installments.filter(t => t.card === cid && idx(mk) >= idx(t.start) && idx(mk) < idx(t.start) + t.count)
+            .sort((a, b) => b.monthly - a.monthly)
+            .forEach(t => {
+              const left = idx(t.start) + t.count - idx(mk);
+              details.push({ label: '↳ ' + t.desc + ' (' + left + '/' + t.count + ')', value: fmt(t.monthly), indent: '10px', font: "500 11.5px 'Plus Jakarta Sans'", fg: MUT, valFg: MUT, pctW: v ? Math.min(100, t.monthly / v * 100) : 0, barBg: '#c9c3b8' });
+            });
+        }
+      });
+      const cardCat = c.id === 'krediKarti';
+      return {
+        icon: c.icon, name: c.name, spent: fmt(spent), limit: fmt(lim), pctW: Math.min(100, pct), pctLabel: lim ? Math.round(pct) + '%' : '—',
+        color: pct > 100 ? RUST : pct > 85 ? '#8a5f2b' : MUT, barColor: pct > 100 ? RUST : pct > 85 ? GOLD : OLIVE,
+        chevron: open ? '▾' : '▸', chevColor: open ? OLIVE : MUT, detailDisplay: open ? 'flex' : 'none', details: details,
+        detailNote: cardCat ? 'Kart altındaki satırlar o ay ödenen taksitler' : c.subs.length + ' kalem · limit ' + fmt(lim) + ' ₺',
+        toggle: () => this.setState({ openCat: open ? null : c.id }),
+        edit: e => { e.stopPropagation(); this.setState({ tab: 'butce' }); }
+      };
+    });
+
+    // people
+    const incTotal = d.incomeItems.reduce((s, it) => s + d.people.reduce((a, p) => a + (+(mData.income[it] || {})[p] || 0), 0), 0);
+    const people = d.people.map((p, i) => {
+      const tot = d.incomeItems.reduce((s, it) => s + (+(mData.income[it] || {})[p] || 0), 0);
+      return { name: p, total: fmt(tot), pctW: incTotal ? tot / incTotal * 100 : 0, pctLabel: incTotal ? Math.round(tot / incTotal * 100) + '%' : '—', color: i === 0 ? OLIVE : GOLD, items: d.incomeItems.map(it => ({ label: it, value: fmt(+(mData.income[it] || {})[p] || 0) })) };
+    });
+    const personExpense = [
+      { name: 'ELİF', detail: 'Kredi Kartı 1', value: fmt(+mData.expenses['Kredi Kartı 1 (Elif)'] || 0) },
+      { name: 'AHMET', detail: 'Ziraat + Vakıf + Yapı Kredi', value: fmt((+mData.expenses['Kredi Kartı 2 (Ziraat)'] || 0) + (+mData.expenses['Kredi Kartı 3 (Vakıf)'] || 0) + (+mData.expenses['Kredi Kartı 4 (YapıKredi)'] || 0)) },
+      { name: 'Ortak', detail: 'Konut, faturalar, bakıcı, eğitim', value: fmt(['Ev Kredisi', 'Aidat', 'Elektrik', 'Su', 'Doğalgaz', 'İnternet', 'Telefon', 'Bakıcı Parası', 'KYK Ödemesi', 'Dershane'].reduce((s, x) => s + (+mData.expenses[x] || 0), 0)) }
+    ];
+
+    // ending soon
+    const nowIdx = idx(TODAY);
+    const endingSoon = d.installments.map(t => ({ t: t, end: idx(t.start) + t.count - 1 })).filter(x => x.end >= nowIdx).sort((a, b) => a.end - b.end).slice(0, 4).map(x => {
+      const c = d.installmentCards.find(k => k.id === x.t.card) || {};
+      return { card: c.short || x.t.card, color: c.color, desc: x.t.desc, monthly: fmt(x.t.monthly) + ' ₺', left: x.end - nowIdx + 1, endLabel: shortLabel(key(x.end)) + "'de biter" };
+    });
+
+    // budget entry
+    const incomeRows = d.incomeItems.map(it => {
+      const a = +(mData.income[it] || {})[d.people[0]] || 0, b = +(mData.income[it] || {})[d.people[1]] || 0;
+      return { label: it, a: a, b: b, total: fmt(a + b), setA: e => this.setIncome(mk, it, d.people[0], this.num(e)), setB: e => this.setIncome(mk, it, d.people[1], this.num(e)) };
+    });
+    const subHint = s => {
+      const inv = Object.keys(d.cardSubMap).find(k => d.cardSubMap[k] === s);
+      if (!inv) return { hint: '', hintColor: DIM };
+      const load = cl[inv] || 0, val = +mData.expenses[s] || 0;
+      if (!load) return { hint: 'bu ay taksit yok', hintColor: DIM };
+      const diff = val - load;
+      return { hint: 'taksit yükü ' + fmt(load) + (Math.abs(diff) < 1 ? ' · birebir' : diff > 0 ? ' · +' + fmt(diff) + ' harcama' : ' · ' + fmt(diff) + ' eksik'), hintColor: diff < -1 ? RUST : Math.abs(diff) < 1 ? OLIVE : DIM };
+    };
+    const catBlocks = d.categories.map(c => ({
+      icon: c.icon, name: c.name, limit: +c.limit || 0,
+      total: fmt(c.subs.reduce((s, x) => s + (+mData.expenses[x] || 0), 0)),
+      setLimit: e => this.setLimit(c.id, this.num(e)),
+      subs: c.subs.map(s => Object.assign({ label: s, val: +mData.expenses[s] || 0, set: e => this.setExpense(mk, s, this.num(e)) }, subHint(s)))
+    }));
+    const savingsRows = d.savingsItems.map(s => ({ label: s, val: +mData.savings[s] || 0, set: e => this.setSaving(mk, s, this.num(e)) }));
+    const entryCards = [{
+      icon: '＋', name: 'Gelir', headBg: '#eef0e4', color: OLIVE, total: fmt(incTotal),
+      rows: d.incomeItems.reduce((acc, it) => acc.concat(d.people.map(p => ({ label: it + ' · ' + p, hint: '', hintColor: DIM, val: +(mData.income[it] || {})[p] || 0, set: e => this.setIncome(mk, it, p, this.num(e)) }))), [])
+    }].concat(d.categories.map(c => ({
+      icon: c.icon, name: c.name, headBg: '#faf9f5', color: RUST,
+      total: fmt(c.subs.reduce((s, x) => s + (+mData.expenses[x] || 0), 0)),
+      rows: c.subs.map(s => Object.assign({ label: s, val: +mData.expenses[s] || 0, set: e => this.setExpense(mk, s, this.num(e)) }, subHint(s)))
+    })), [{
+      icon: '◆', name: 'Birikime ayrılan', headBg: '#f9f2e0', color: GOLD,
+      total: fmt(d.savingsItems.reduce((s, x) => s + (+mData.savings[x] || 0), 0)),
+      rows: d.savingsItems.map(s => ({ label: s, hint: '', hintColor: DIM, val: +mData.savings[s] || 0, set: e => this.setSaving(mk, s, this.num(e)) }))
+    }]);
+    const expTotal = d.categories.reduce((s, c) => s + c.subs.reduce((a, x) => a + (+mData.expenses[x] || 0), 0), 0);
+    const savTotal = d.savingsItems.reduce((s, x) => s + (+mData.savings[x] || 0), 0);
+    const carryVal = cur ? cur.carry : 0;
+    const netVal = carryVal + incTotal - expTotal - savTotal;
+    const equation = [
+      { label: 'Devir', value: fmt(carryVal), color: INK, bg: '#fffefb' },
+      { label: '+ Gelir', value: fmt(incTotal), color: OLIVE, bg: '#fffefb' },
+      { label: '− Gider', value: fmt(expTotal), color: RUST, bg: '#fffefb' },
+      { label: '− Birikim', value: fmt(savTotal), color: GOLD, bg: '#fffefb' },
+      { label: '= Kalan', value: sgn(netVal), color: netVal < 0 ? RUST : OLIVE_D, bg: netVal < 0 ? '#f8ece7' : '#eef0e4' }
+    ];
+
+    // installments
+    const calMonths = []; for (let i = 0; i < 14; i++) calMonths.push(shift(TODAY, i));
+    const loads = calMonths.map(k => this.cardLoad(k));
+    const maxCell = Math.max.apply(null, loads.map(l => Math.max.apply(null, Object.keys(l).map(k => l[k]).concat([0]))).concat([1]));
+    const calendarRows = calMonths.map((k, i) => ({
+      label: label(k), dot: k === TODAY ? GOLD : k === mk ? OLIVE : '#dcd7cc',
+      rowBg: k === mk ? '#f6f6ee' : 'transparent',
+      go: () => this.setState({ month: k, tab: 'butce' }),
+      cells: d.installmentCards.map(c => {
+        const v = loads[i][c.id] || 0;
+        return { value: v ? fmt(v) : '·', fg: v ? INK : '#cfc9bf', bg: v ? 'rgba(95,107,58,' + (0.06 + v / maxCell * 0.22).toFixed(3) + ')' : 'transparent' };
+      }),
+      total: fmt(d.installmentCards.reduce((s, c) => s + (loads[i][c.id] || 0), 0))
+    }));
+    const cardSummary = d.installmentCards.map(c => {
+      const items = d.installments.filter(t => t.card === c.id);
+      const active = items.filter(t => idx(t.start) + t.count > nowIdx);
+      const remaining = active.reduce((s, t) => s + t.monthly * (idx(t.start) + t.count - Math.max(nowIdx, idx(t.start))), 0);
+      return { name: c.short, color: c.color, thisMonth: fmt(cl[c.id] || 0), sub: active.length + ' aktif · ' + fmtK(remaining) + ' ₺ kalan' };
+    }).concat([{ name: 'Toplam aylık yük', color: INK, thisMonth: fmt(Object.keys(cl).reduce((s, k) => s + cl[k], 0)), sub: label(mk) }]);
+
+    const tlStart = idx('2025-07'), tlLen = 26;
+    const ticks = []; for (let i = 0; i < tlLen; i += 3) ticks.push({ label: shortLabel(key(tlStart + i)) });
+    const ganttGroups = d.installmentCards.map(c => {
+      const items = d.installments.filter(t => t.card === c.id).sort((a, b) => idx(a.start) - idx(b.start));
+      const rem = items.reduce((s, t) => { const left = Math.max(0, idx(t.start) + t.count - Math.max(nowIdx, idx(t.start))); return s + t.monthly * (idx(t.start) + t.count > nowIdx ? left : 0); }, 0);
+      return {
+        name: c.name, color: c.color, remaining: fmt(rem) + ' ₺',
+        rows: items.map(t => {
+          const s = idx(t.start), e = s + t.count, done = e <= nowIdx;
+          return { desc: t.desc, monthly: fmt(t.monthly), count: t.count, fg: done ? '#a8a29a' : INK, left: (s - tlStart) / tlLen * 100, width: t.count / tlLen * 100, barBg: done ? '#e6e1d7' : c.color, barFg: done ? '#8a837a' : '#ffffff' };
+        })
+      };
+    });
+
+    // savings
+    const goldRows = d.gold.order.map(t => ({
+      label: t, amount: +d.gold.portfolio[t] || 0, price: +d.gold.prices[t] || 0, priceF: fmt(+d.gold.prices[t] || 0),
+      value: fmt((+d.gold.portfolio[t] || 0) * (+d.gold.prices[t] || 0)),
+      setAmount: e => { const x = JSON.parse(JSON.stringify(d)); x.gold.portfolio[t] = this.num(e); this.save(x); },
+      setPrice: e => { const x = JSON.parse(JSON.stringify(d)); x.gold.prices[t] = this.num(e); this.save(x); }
+    }));
+    const fxRows = d.fx.map((f, i) => ({
+      label: f.label, amount: +f.amount || 0, rate: +f.rate || 0, value: fmt((+f.amount || 0) * (+f.rate || 0)),
+      rateF: (+f.rate || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      textDisplay: this.state.manual ? 'none' : 'inline-block', inputDisplay: this.state.manual ? 'block' : 'none',
+      setAmount: e => { const x = JSON.parse(JSON.stringify(d)); x.fx[i].amount = this.num(e); this.save(x); },
+      setRate: e => { const x = JSON.parse(JSON.stringify(d)); x.fx[i].rate = this.num(e); this.save(x); }
+    }));
+    const gv = this.goldValue(), fv = this.fxValue(), pv = gv + fv, goal = +d.goal || 0;
+    const invested = d.gold.purchases.reduce((s, p) => s + (+p.cost || 0), 0);
+    const savingsKpis = [
+      { label: 'Altın', value: fmt(gv) + ' ₺', color: GOLD, sub: fmt(d.gold.portfolio['Külçe Altın'] || 0) + ' gr külçe + ziynet' },
+      { label: 'Döviz & TL', value: fmt(fv) + ' ₺', color: OLIVE, sub: fv ? 'kurlar otomatik güncellenir' : 'miktar gir, kur otomatik gelir' },
+      { label: 'Bütçeden ayrılan', value: fmt(this.savedCash()) + ' ₺', color: INK, sub: 'Haziran–Ağustos toplamı' },
+      { label: 'Alım defterine göre maliyet', value: fmt(invested) + ' ₺', color: MUT, sub: d.gold.purchases.length + ' kayıt' }
+    ];
+    const purchases = d.gold.purchases.slice().reverse().map(p => ({ date: p.date.slice(5).split('-').reverse().join('.'), type: p.type, amount: fmt(p.amount) + (p.type.indexOf('Gram') > -1 || p.type === 'Külçe Altın' ? ' gr' : ' ad'), cost: fmt(p.cost) + ' ₺', unit: p.amount ? fmt(p.cost / p.amount) + '/br' : '—' }));
+
+    // yearly
+    const yearHeads = [{ label: 'Ay', align: 'left' }, { label: 'Durum', align: 'left' }, { label: 'Gelir', align: 'right' }, { label: 'Gider', align: 'right' }, { label: 'Kart', align: 'right' }, { label: 'Birikim', align: 'right' }, { label: 'Kalan', align: 'right' }, { label: 'Tasarruf', align: 'left' }];
+    const yearRows = proj.map(x => {
+      const c = this.cardLoad(x.k), cardT = Object.keys(c).reduce((s, k) => s + c[k], 0);
+      const rate = x.t.income ? (x.t.income - x.t.expense) / x.t.income * 100 : 0;
+      return {
+        label: label(x.k), kind: x.t.actual ? 'Gerçek' : 'Tahmin', kindFg: x.t.actual ? OLIVE_D : '#a8a29a',
+        income: fmt(x.t.income), expense: fmt(x.t.expense), cards: fmt(cardT), savings: fmt(x.t.savings),
+        net: sgn(x.t.net), netColor: x.t.net < 0 ? RUST : INK,
+        bg: x.k === mk ? '#f6f6ee' : x.t.actual ? 'transparent' : '#fdfcf9',
+        fg: x.t.actual ? INK : MUT, barW: Math.max(0, Math.min(100, rate)), barBg: rate < 0 ? RUST : rate < 10 ? GOLD : OLIVE,
+        go: () => this.setState({ month: x.k, tab: 'butce' })
+      };
+    });
+    const byYear = {};
+    proj.forEach(x => { const y = x.k.slice(0, 4); if (!byYear[y]) byYear[y] = { inc: 0, exp: 0, sav: 0, n: 0, act: 0 }; const b = byYear[y]; b.inc += x.t.income; b.exp += x.t.expense; b.sav += x.t.savings; b.n++; if (x.t.actual) b.act++; });
+    const yearCompare = Object.keys(byYear).sort().map(y => {
+      const b = byYear[y];
+      return { year: y, scope: b.n + ' ay · ' + b.act + ' gerçek', lines: [{ label: 'Gelir', value: fmt(b.inc) + ' ₺', color: OLIVE }, { label: 'Gider', value: fmt(b.exp) + ' ₺', color: RUST }, { label: 'Birikim', value: fmt(b.sav) + ' ₺', color: GOLD }, { label: 'Aylık ortalama fark', value: sgn((b.inc - b.exp - b.sav) / b.n) + ' ₺', color: (b.inc - b.exp - b.sav) < 0 ? RUST : INK }] };
+    });
+    const avgInc = proj.reduce((s, x) => s + x.t.income, 0) / proj.length;
+    const avgExp = proj.reduce((s, x) => s + x.t.expense, 0) / proj.length;
+    const yearKpis = [
+      { label: 'Ortalama aylık gelir', value: fmt(avgInc), color: OLIVE, sub: proj.length + ' ay ortalaması' },
+      { label: 'Ortalama aylık gider', value: fmt(avgExp), color: RUST, sub: 'kart taksitleri dahil' },
+      { label: 'Ortalama tasarruf payı', value: Math.round((avgInc - avgExp) / avgInc * 100) + '%', color: INK, sub: fmt(avgInc - avgExp) + ' ₺/ay' },
+      { label: 'Dönem sonu bakiye', value: sgn(horizon ? horizon.t.net : 0), color: horizon && horizon.t.net < 0 ? RUST : OLIVE_D, sub: horizon ? label(horizon.k) : '—' }
+    ];
+
+    // transactions
+    const txMk = this.txMonth(), txItems = this.txList(txMk), subOpts = this.allSubs();
+    const txSum = txItems.reduce((s, t) => s + (+t.amount || 0), 0);
+    const subToCat = {}; d.categories.forEach(c => c.subs.forEach(s => { subToCat[s] = c; }));
+    const txRows = txItems.map((t, i) => ({
+      date: t.date || '—', desc: t.desc, sub: t.sub, amount: +t.amount || 0, options: subOpts,
+      selBg: t.sub === 'Beklenmeyen Giderler' ? '#f9f2e0' : '#fffefb',
+      setSub: e => {
+        const v = e.target.value, x = JSON.parse(JSON.stringify(d));
+        x.transactions[txMk][i].sub = v;
+        if (!x.txMemory) x.txMemory = {};
+        const k = this.normDesc(t.desc); if (k) x.txMemory[k] = v;
+        this.save(x);
+      },
+      setAmount: e => { const x = JSON.parse(JSON.stringify(d)); x.transactions[txMk][i].amount = this.num(e); this.save(x); },
+      remove: () => { const x = JSON.parse(JSON.stringify(d)); x.transactions[txMk].splice(i, 1); this.save(x); }
+    }));
+    const txByCat = {};
+    txItems.forEach(t => { const c = subToCat[t.sub]; if (!c) return; if (!txByCat[c.id]) txByCat[c.id] = { c: c, total: 0, n: 0 }; txByCat[c.id].total += +t.amount || 0; txByCat[c.id].n++; });
+    const txGroups = Object.keys(txByCat).map(k => txByCat[k]).sort((a, b) => b.total - a.total).map(g => ({
+      icon: g.c.icon, name: g.c.name, total: fmt(g.total), color: g.c.limit && g.total > g.c.limit ? RUST : INK,
+      sub: g.n + ' kayıt · limit ' + fmt(g.c.limit || 0)
+    }));
+
+    // sheet
+    const f = this.state.form, sheet = this.state.sheet;
+    const set = k => e => this.setState({ form: Object.assign({}, this.state.form, { [k]: e.target.value }) });
+    const monthOpts = [];
+    for (let i = -3; i <= 12; i++) { const k = shift(TODAY, i); monthOpts.push({ value: k, label: label(k) }); }
+    let sheetFields = [], sheetTitle = '', sheetCta = 'Kaydet', sheetNote = '';
+    if (sheet === 'quick') {
+      const kind = f.kind || 'gider';
+      sheetTitle = 'Hızlı kayıt';
+      sheetCta = 'Tutarı ekle';
+      sheetNote = 'Girdiğin tutar seçili ayın mevcut değerine eklenir; eksiltmek için negatif yazabilirsin.';
+      const opts = kind === 'gelir' ? d.incomeItems.map(x => ({ value: x, label: x })) : kind === 'birikim' ? d.savingsItems.map(x => ({ value: x, label: x })) : d.categories.reduce((a, c) => a.concat(c.subs.map(s => ({ value: s, label: c.name + ' · ' + s }))), []);
+      sheetFields = [
+        { label: 'Ay', isSelect: true, value: f.month || mk, options: monthOpts, set: set('month') },
+        { label: 'Kalem', isSelect: true, value: f.item || opts[0].value, options: opts, set: set('item') }
+      ];
+      if (kind === 'gelir') sheetFields.push({ label: 'Kişi', isSelect: true, value: f.person || d.people[0], options: d.people.map(p => ({ value: p, label: p })), set: set('person') });
+      sheetFields.push({ label: 'Tutar ₺', isInput: true, type: 'number', value: f.amount === undefined ? '' : f.amount, ph: '0', set: set('amount') });
+    } else if (sheet === 'taksit') {
+      sheetTitle = 'Yeni taksit';
+      sheetCta = 'Taksiti ekle';
+      sheetNote = 'Aylık tutar, toplam ve taksit sayısından hesaplanır ve takvime otomatik yayılır.';
+      sheetFields = [
+        { label: 'Kart', isSelect: true, value: f.card || d.installmentCards[0].id, options: d.installmentCards.map(c => ({ value: c.id, label: c.name })), set: set('card') },
+        { label: 'Açıklama', isInput: true, type: 'text', value: f.desc || '', ph: 'Örn. MediaMarkt', set: set('desc') },
+        { label: 'Toplam ₺', isInput: true, type: 'number', value: f.total === undefined ? '' : f.total, ph: '0', set: set('total') },
+        { label: 'Taksit sayısı', isInput: true, type: 'number', value: f.count === undefined ? '' : f.count, ph: '3', set: set('count') },
+        { label: 'Başlangıç ayı', isSelect: true, value: f.start || TODAY, options: monthOpts, set: set('start') }
+      ];
+    } else if (sheet === 'alim') {
+      sheetTitle = 'Altın alımı';
+      sheetCta = 'Deftere ekle';
+      sheetNote = 'Alım portföye eklenir ve alım defterine kaydedilir.';
+      sheetFields = [
+        { label: 'Tür', isSelect: true, value: f.type || d.gold.order[0], options: d.gold.order.map(t => ({ value: t, label: t })), set: set('type') },
+        { label: 'Tarih', isInput: true, type: 'date', value: f.date || '2026-08-29', ph: '', set: set('date') },
+        { label: 'Miktar', isInput: true, type: 'number', value: f.amount === undefined ? '' : f.amount, ph: '0', set: set('amount') },
+        { label: 'Toplam maliyet ₺', isInput: true, type: 'number', value: f.cost === undefined ? '' : f.cost, ph: '0', set: set('cost') }
+      ];
+    }
+
+    const submitSheet = () => {
+      const st = this.state.form;
+      if (sheet === 'quick') {
+        const kind = st.kind || 'gider', m = st.month || mk, amt = parseFloat(String(st.amount || '0').replace(',', '.')) || 0;
+        const dflt = kind === 'gelir' ? d.incomeItems[0] : kind === 'birikim' ? d.savingsItems[0] : d.categories[0].subs[0];
+        const item = st.item || dflt;
+        if (kind === 'gelir') { const p = st.person || d.people[0]; const cd = this.ensure(m); if (!cd.months[m].income[item]) cd.months[m].income[item] = {}; cd.months[m].income[item][p] = (+cd.months[m].income[item][p] || 0) + amt; this.save(cd); }
+        else if (kind === 'birikim') { const cd = this.ensure(m); cd.months[m].savings[item] = (+cd.months[m].savings[item] || 0) + amt; this.save(cd); }
+        else { const cd = this.ensure(m); cd.months[m].expenses[item] = (+cd.months[m].expenses[item] || 0) + amt; this.save(cd); }
+      } else if (sheet === 'taksit') {
+        const total = parseFloat(String(st.total || '0').replace(',', '.')) || 0, count = parseInt(st.count || '0', 10) || 0;
+        if (total && count) { const x = JSON.parse(JSON.stringify(d)); x.installments.push({ card: st.card || d.installmentCards[0].id, desc: st.desc || 'Yeni taksit', total: total, count: count, monthly: Math.round(total / count * 100) / 100, start: st.start || TODAY }); this.save(x); }
+      } else if (sheet === 'alim') {
+        const amt = parseFloat(String(st.amount || '0').replace(',', '.')) || 0, cost = parseFloat(String(st.cost || '0').replace(',', '.')) || 0;
+        const type = st.type || d.gold.order[0];
+        if (amt) { const x = JSON.parse(JSON.stringify(d)); x.gold.portfolio[type] = (+x.gold.portfolio[type] || 0) + amt; x.gold.purchases.push({ date: st.date || '2026-08-29', type: type, amount: amt, cost: cost }); this.save(x); }
+      }
+      this.setState({ sheet: null, form: {} });
+    };
+
+    return {
+      navItems: navItems, tabTitle: titles[this.state.tab],
+      sidebarDisplay: navStyle === 'sidebar' ? 'flex' : 'none',
+      bottomDisplay: navStyle === 'bottom' ? 'grid' : 'none',
+      topTabsDisplay: navStyle === 'top' ? 'flex' : 'none',
+      mobileTitleDisplay: navStyle === 'sidebar' ? 'none' : 'flex',
+      desktopTitleDisplay: navStyle === 'sidebar' ? 'block' : 'none',
+      fabBottom: navStyle === 'bottom' ? '84px' : 'clamp(16px,2.4vw,28px)',
+      tableDisplay: entryStyle === 'tablo' ? 'flex' : 'none',
+      cardsDisplay: entryStyle === 'kart' ? 'flex' : 'none',
+      calendarDisplay: taksitView === 'zaman' ? 'none' : 'flex',
+      timelineDisplay: taksitView === 'takvim' ? 'none' : 'flex',
+      orderForecast: forecastFirst ? 1 : 3, orderDetail: forecastFirst ? 2 : 0,
+      isOzet: this.state.tab === 'ozet', isButce: this.state.tab === 'butce', isHarcama: this.state.tab === 'harcama', isTaksit: this.state.tab === 'taksit', isBirikim: this.state.tab === 'birikim', isYillik: this.state.tab === 'yillik',
+      txMonthLabel: label(txMk) + (idx(mk) < idx(TX_START) ? ' (kayıt Eylül 2026 ile başlıyor)' : ''),
+      txInput: this.state.txInput, setTxInput: e => this.setState({ txInput: e.target.value }),
+      parseTx: () => this.parseTx(), txStatus: this.state.txStatus,
+      onFiles: e => { const fs = e.target.files; this.handleFiles(fs); e.target.value = ''; },
+      onDragOver: e => { e.preventDefault(); if (!this.state.dragging) this.setState({ dragging: true }); },
+      onDrop: e => { e.preventDefault(); this.setState({ dragging: false }); this.handleFiles(e.dataTransfer && e.dataTransfer.files); },
+      dropBd: this.state.dragging ? OLIVE : '#ddd8ce', dropBg: this.state.dragging ? '#eef0e4' : '#faf9f5',
+      txStatusColor: this.state.txState === 'off' ? RUST : this.state.txState === 'ok' ? OLIVE_D : DIM,
+      txDotColor: this.state.txState === 'ok' ? OLIVE : this.state.txState === 'loading' ? GOLD : this.state.txState === 'off' ? RUST : '#c9c3b8',
+      txRows: txRows, txGroups: txGroups, txTotal: fmt(txSum) + ' ₺',
+      txCountLabel: txItems.length + ' harcama · ' + label(txMk),
+      txEmpty: txItems.length === 0, txEmptyNote: 'Henüz kayıt yok. Yukarıya banka SMS\'lerini veya ekstre satırlarını yapıştırıp "Claude ile ayıkla" de.',
+      applyTx: () => {
+        const cd = this.ensure(txMk), sums = {};
+        txItems.forEach(t => { sums[t.sub] = (sums[t.sub] || 0) + (+t.amount || 0); });
+        Object.keys(sums).forEach(s => { cd.months[txMk].expenses[s] = Math.round(sums[s] * 100) / 100; });
+        this.save(cd);
+        this.setState({ txState: 'ok', txStatus: Object.keys(sums).length + ' kalem bütçeye yazıldı · ' + label(txMk) });
+      },
+      monthLabel: label(mk), monthBadge: monthMissing ? 'Tahmin' : mk === TODAY ? 'Bu ay' : 'Kayıtlı', monthBadgeColor: monthMissing ? '#a8a29a' : mk === TODAY ? GOLD : OLIVE,
+      monthMissing: monthMissing,
+      prevMonth: () => this.setState({ month: shift(mk, -1) }), nextMonth: () => this.setState({ month: shift(mk, 1) }),
+      materialize: () => { const cd = this.ensure(mk); this.save(cd); },
+      kpis: kpis, forecast: forecast, balanceLine: balanceLine, zeroY: yOf(0).toFixed(2), forecastNotes: forecastNotes,
+      catRows: catRows, people: people, personExpense: personExpense, endingSoon: endingSoon,
+      incomeRows: incomeRows, incomeTotal: fmt(incTotal), catBlocks: catBlocks, expenseTotal: fmt(expTotal), savingsRows: savingsRows, savingsTotal: fmt(savTotal), entryCards: entryCards, equation: equation,
+      cards: d.installmentCards, cardSummary: cardSummary, calendarRows: calendarRows, ganttGroups: ganttGroups, timelineTicks: ticks, nowLeft: (nowIdx - tlStart) / tlLen * 100, timelineSpan: shortLabel('2025-07') + ' → ' + shortLabel(key(tlStart + tlLen - 1)),
+      goldRows: goldRows, goldTotal: fmt(gv) + ' ₺', fxRows: fxRows, fxTotal: fmt(fv) + ' ₺', purchases: purchases, savingsKpis: savingsKpis,
+      priceStatusText: this.state.priceStatus.text,
+      priceDotColor: this.state.priceStatus.state === 'ok' ? OLIVE : this.state.priceStatus.state === 'loading' ? GOLD : '#c9c3b8',
+      priceTextDisplay: this.state.manual ? 'none' : 'inline-block',
+      priceInputDisplay: this.state.manual ? 'block' : 'none',
+      refreshPrices: () => this.fetchPrices(),
+      toggleManual: () => this.setState({ manual: !this.state.manual }),
+      manualBg: this.state.manual ? '#eef0e4' : '#faf9f5',
+      manualBd: this.state.manual ? '#dbe0c6' : '#ddd8ce',
+      manualFg: this.state.manual ? OLIVE_D : MUT,
+      portfolioTotal: fmt(pv), portfolioBreak: 'Altın ' + fmt(gv) + ' ₺ · Döviz & TL ' + fmt(fv) + ' ₺',
+      goal: goal, setGoal: e => { const x = JSON.parse(JSON.stringify(d)); x.goal = this.num(e); this.save(x); },
+      goalPctW: goal ? Math.min(100, pv / goal * 100) : 0, goalPctLabel: goal ? Math.round(pv / goal * 100) + '%' : '—', goalRemain: fmt(Math.max(0, goal - pv)),
+      yearHeads: yearHeads, yearRows: yearRows, yearCompare: yearCompare, yearKpis: yearKpis,
+      horizonBalance: horizon ? sgn(horizon.t.net) : '—', horizonColor: horizon && horizon.t.net < 0 ? RUST : OLIVE_D, horizonNote: horizon ? label(horizon.k) + ' tahmini' : '',
+      openQuick: () => this.setState({ sheet: 'quick', form: { kind: 'gider', month: mk } }),
+      openInstallment: () => this.setState({ sheet: 'taksit', form: {} }),
+      openPurchase: () => this.setState({ sheet: 'alim', form: {} }),
+      closeSheet: () => this.setState({ sheet: null, form: {} }),
+      stop: e => e.stopPropagation(),
+      sheetOpen: !!sheet, isQuickSheet: sheet === 'quick', sheetTitle: sheetTitle, sheetCta: sheetCta, sheetNote: sheetNote, sheetFields: sheetFields, submitSheet: submitSheet,
+      sheetKinds: ['gider', 'gelir', 'birikim'].map(k => ({
+        label: k === 'gider' ? 'Gider' : k === 'gelir' ? 'Gelir' : 'Birikim',
+        bg: (f.kind || 'gider') === k ? '#eef0e4' : '#fffefb', fg: (f.kind || 'gider') === k ? OLIVE_D : MUT,
+        pick: () => this.setState({ form: Object.assign({}, this.state.form, { kind: k, item: undefined }) })
+      })).concat([{ label: 'Taksit', bg: '#fffefb', fg: MUT, pick: () => this.setState({ sheet: 'taksit', form: {} }) }])
+    };
+  }
+}
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () { navigator.serviceWorker.register('service-worker.js').catch(function(){}); });
+}
+</script>
 </body>
 </html>
