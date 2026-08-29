@@ -1,10 +1,11 @@
 /* Basit çevrimdışı önbellek */
-var CACHE = "butce-takip-v1";
+var CACHE = "butce-takip-v2";
 var ASSETS = [
   "./",
   "./index.html",
   "./style.css",
   "./app.js",
+  "./seed.js",
   "./manifest.json",
   "./icons/icon.svg",
   "./icons/icon-192.png",
