@@ -634,15 +634,17 @@
 
               <section style="border:1px solid #ddd8ce;border-radius:4px;background:#fffefb;overflow:hidden">
                 <div style="display:flex;align-items:baseline;gap:10px;padding:15px 18px;border-bottom:1px solid #ece8e0">
-                  <h2 style="margin:0;font:700 15px 'Plus Jakarta Sans';letter-spacing:-0.2px">Alım defteri</h2>
-                  <button onClick="{{ openPurchase }}" style="margin-left:auto;border:1px solid #ddd8ce;background:#faf9f5;border-radius:4px;padding:7px 12px;cursor:pointer;font:600 12px 'Plus Jakarta Sans';color:#55504a" style-hover="background:#f0efe8;border-color:#b5892b">+ Alım</button>
+                  <h2 style="margin:0;font:700 15px 'Plus Jakarta Sans';letter-spacing:-0.2px">Alım / Satış defteri</h2>
+                  <button onClick="{{ openSale }}" style="margin-left:auto;border:1px solid #ddd8ce;background:#faf9f5;border-radius:4px;padding:7px 12px;cursor:pointer;font:600 12px 'Plus Jakarta Sans';color:#a2452c" style-hover="background:#f8ece7;border-color:#a2452c">− Satış</button>
+                  <button onClick="{{ openPurchase }}" style="border:1px solid #ddd8ce;background:#faf9f5;border-radius:4px;padding:7px 12px;cursor:pointer;font:600 12px 'Plus Jakarta Sans';color:#55504a" style-hover="background:#f0efe8;border-color:#b5892b">+ Alım</button>
                 </div>
                 <sc-for list="{{ purchases }}" as="p" hint-placeholder-count="2">
                   <div style="display:flex;align-items:center;gap:10px;padding:9px 18px;border-bottom:1px solid #f4f1ea">
                     <span style="font:500 11px 'Roboto Mono',monospace;color:#8a837a;width:78px">{{ p.date }}</span>
+                    <span style="font:700 9px 'Roboto Mono',monospace;letter-spacing:0.06em;color:{{ p.kindFg }};background:{{ p.kindBg }};border-radius:3px;padding:3px 6px;flex:0 0 auto">{{ p.kindLabel }}</span>
                     <span style="flex:1;font:600 12.5px 'Plus Jakarta Sans'">{{ p.type }}</span>
-                    <span style="font:500 11.5px 'Roboto Mono',monospace;color:#55504a">{{ p.amount }}</span>
-                    <span style="font:600 12.5px 'Roboto Mono',monospace;width:96px;text-align:right">{{ p.cost }}</span>
+                    <span style="font:500 11.5px 'Roboto Mono',monospace;color:{{ p.amountFg }}">{{ p.amount }}</span>
+                    <span style="font:600 12.5px 'Roboto Mono',monospace;width:96px;text-align:right;color:{{ p.costFg }}">{{ p.cost }}</span>
                     <span style="font:500 10.5px 'Roboto Mono',monospace;color:#a8a29a;width:74px;text-align:right">{{ p.unit }}</span>
                   </div>
                 </sc-for>
@@ -1462,14 +1464,29 @@ class Component extends DCLogic {
       setRate: e => { const x = this.fresh(); x.fx[i].rate = this.num(e); this.save(x); }
     }));
     const gv = this.goldValue(), fv = this.fxValue(), pv = gv + fv, goal = +d.goal || 0;
-    const invested = d.gold.purchases.reduce((s, p) => s + (+p.cost || 0), 0);
+    const invested = d.gold.purchases.reduce((s, p) => s + (p.kind === 'satis' ? -(+p.cost || 0) : (+p.cost || 0)), 0);
     const savingsKpis = [
       { label: 'Altın', value: fmt(gv) + ' ₺', color: GOLD, sub: fmt(d.gold.portfolio['Külçe Altın'] || 0) + ' gr külçe + ziynet' },
       { label: 'Döviz & TL', value: fmt(fv) + ' ₺', color: OLIVE, sub: fv ? 'kurlar otomatik güncellenir' : 'miktar gir, kur otomatik gelir' },
       { label: 'Bütçeden ayrılan', value: fmt(this.savedCash()) + ' ₺', color: INK, sub: (function () { const ks = this.actualKeys(); return ks.length ? (ks.length > 1 ? label(ks[0]) + ' – ' + label(ks[ks.length - 1]) : label(ks[0])) + ' toplamı' : 'kayıt yok'; }).call(this) },
-      { label: 'Alım defterine göre maliyet', value: fmt(invested) + ' ₺', color: MUT, sub: d.gold.purchases.length + ' kayıt' }
+      { label: 'Net yatırılan (alım − satış)', value: fmt(invested) + ' ₺', color: MUT, sub: d.gold.purchases.length + ' kayıt' }
     ];
-    const purchases = d.gold.purchases.slice().reverse().map(p => ({ date: p.date.slice(5).split('-').reverse().join('.'), type: p.type, amount: fmt(p.amount) + (p.type.indexOf('Gram') > -1 || p.type === 'Külçe Altın' ? ' gr' : ' ad'), cost: fmt(p.cost) + ' ₺', unit: p.amount ? fmt(p.cost / p.amount) + '/br' : '—' }));
+    const purchases = d.gold.purchases.slice().reverse().map(p => {
+      const sat = p.kind === 'satis';
+      const birim = (p.type.indexOf('Gram') > -1 || p.type === 'Külçe Altın') ? ' gr' : ' ad';
+      return {
+        date: p.date.slice(5).split('-').reverse().join('.'),
+        type: p.type,
+        kindLabel: sat ? 'SATIŞ' : 'ALIŞ',
+        kindFg: sat ? RUST : OLIVE,
+        kindBg: sat ? '#f8ece7' : '#eef0e4',
+        amount: (sat ? '−' : '+') + fmt(p.amount) + birim,
+        amountFg: sat ? RUST : INK,
+        cost: fmt(p.cost) + ' ₺',
+        costFg: sat ? OLIVE : INK,
+        unit: p.amount ? fmt(p.cost / p.amount) + '/br' : '—'
+      };
+    });
 
     // yearly
     const yearHeads = [{ label: 'Ay', align: 'left' }, { label: 'Durum', align: 'left' }, { label: 'Gelir', align: 'right' }, { label: 'Gider', align: 'right' }, { label: 'Kart', align: 'right' }, { label: 'Birikim', align: 'right' }, { label: 'Kalan', align: 'right' }, { label: 'Tasarruf', align: 'left' }];
@@ -1553,6 +1570,16 @@ class Component extends DCLogic {
         { label: 'Taksit sayısı', isInput: true, type: 'number', value: f.count === undefined ? '' : f.count, ph: '3', set: set('count') },
         { label: 'Başlangıç ayı', isSelect: true, value: f.start || TODAY, options: monthOpts, set: set('start') }
       ];
+    } else if (sheet === 'satis') {
+      sheetTitle = 'Altın satışı (çıkış)';
+      sheetCta = 'Satışı kaydet';
+      sheetNote = 'Satılan miktar portföyden düşülür, eline geçen tutar deftere işlenir.';
+      sheetFields = [
+        { label: 'Tür', isSelect: true, value: f.type || d.gold.order[0], options: d.gold.order.map(t => ({ value: t, label: t + '  (elde: ' + fmt(+d.gold.portfolio[t] || 0) + ')' })), set: set('type') },
+        { label: 'Tarih', isInput: true, type: 'date', value: f.date || todayISO(), ph: '', set: set('date') },
+        { label: 'Satılan miktar', isInput: true, type: 'number', value: f.amount === undefined ? '' : f.amount, ph: '0', set: set('amount') },
+        { label: 'Eline geçen toplam ₺', isInput: true, type: 'number', value: f.cost === undefined ? '' : f.cost, ph: '0', set: set('cost') }
+      ];
     } else if (sheet === 'alim') {
       sheetTitle = 'Altın alımı';
       sheetCta = 'Deftere ekle';
@@ -1577,6 +1604,17 @@ class Component extends DCLogic {
       } else if (sheet === 'taksit') {
         const total = parseFloat(String(st.total || '0').replace(',', '.')) || 0, count = parseInt(st.count || '0', 10) || 0;
         if (total && count) { const x = this.fresh(); x.installments.push({ card: st.card || d.installmentCards[0].id, desc: st.desc || 'Yeni taksit', total: total, count: count, monthly: Math.round(total / count * 100) / 100, start: st.start || TODAY }); this.save(x); }
+      } else if (sheet === 'satis') {
+        const amt = parseFloat(String(st.amount || '0').replace(',', '.')) || 0, got = parseFloat(String(st.cost || '0').replace(',', '.')) || 0;
+        const type = st.type || d.gold.order[0];
+        if (amt) {
+          const x = this.fresh();
+          const have = +x.gold.portfolio[type] || 0;
+          if (amt > have && !window.confirm('Elinde ' + fmt(have) + ' var, ' + fmt(amt) + ' satmak istiyorsun. Yine de kaydedilsin mi?')) return;
+          x.gold.portfolio[type] = Math.max(0, Math.round((have - amt) * 1000) / 1000);
+          x.gold.purchases.push({ date: st.date || todayISO(), type: type, amount: amt, cost: got, kind: 'satis' });
+          this.save(x);
+        }
       } else if (sheet === 'alim') {
         const amt = parseFloat(String(st.amount || '0').replace(',', '.')) || 0, cost = parseFloat(String(st.cost || '0').replace(',', '.')) || 0;
         const type = st.type || d.gold.order[0];
@@ -1649,6 +1687,7 @@ class Component extends DCLogic {
       openQuick: () => this.setState({ sheet: 'quick', form: { kind: 'gider', month: mk } }),
       openInstallment: () => this.setState({ sheet: 'taksit', form: {} }),
       openPurchase: () => this.setState({ sheet: 'alim', form: {} }),
+      openSale: () => this.setState({ sheet: 'satis', form: {} }),
       closeSheet: () => this.setState({ sheet: null, form: {} }),
       stop: e => e.stopPropagation(),
       sheetOpen: !!sheet, isQuickSheet: sheet === 'quick', sheetTitle: sheetTitle, sheetCta: sheetCta, sheetNote: sheetNote, sheetFields: sheetFields, submitSheet: submitSheet,
