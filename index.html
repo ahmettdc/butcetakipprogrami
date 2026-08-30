@@ -863,7 +863,7 @@ function seed() {
 class Component extends DCLogic {
   constructor(p) {
     super(p);
-    this.state = { data: this.load(), tab: 'ozet', month: TODAY, bp: this.bpOf(), sheet: null, form: {}, manual: false, openCat: null, hideDone: false, txInput: '', txBusy: false, txStatus: 'Metni yapıştır, Claude ayıklasın', txState: 'idle', priceStatus: { state: 'idle', text: 'Fiyatlar bekleniyor…' }, backupNote: '' };
+    this.state = { data: this.load(), tab: 'ozet', month: TODAY, bp: this.bpOf(), sheet: null, form: {}, manual: false, openCat: null, hideDone: true, txInput: '', txBusy: false, txStatus: 'Metni yapıştır, Claude ayıklasın', txState: 'idle', priceStatus: { state: 'idle', text: 'Fiyatlar bekleniyor…' }, backupNote: '' };
   }
   load() {
     try {
