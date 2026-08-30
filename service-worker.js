@@ -1,7 +1,7 @@
 /* Aile Bütçesi — PWA service worker.
    Aynı origin: network-first (taze içerik), çevrimdışında önbellekten.
    Farklı origin (React/pdf.js/fontlar CDN): cache-first, çevrimdışı için saklanır. */
-var CACHE = "aile-butce-v5";
+var CACHE = "aile-butce-v6";
 var CORE = [
   "./",
   "./index.html",
@@ -35,8 +35,13 @@ self.addEventListener("fetch", function (e) {
     // aynı origin: önce ağ, sonra önbellek
     e.respondWith(
       fetch(e.request).then(function (res) {
-        var copy = res.clone();
-        caches.open(CACHE).then(function (c) { c.put(e.request, copy); });
+        // Giriş (Cloudflare Access) ekranına yönlendirilmiş ya da hatalı yanıtları
+        // ÖNBELLEĞE ALMA — yoksa uygulama yerine giriş sayfası saklanır.
+        var cacheable = res && res.ok && res.type === 'basic' && !res.redirected;
+        if (cacheable) {
+          var copy = res.clone();
+          caches.open(CACHE).then(function (c) { c.put(e.request, copy); });
+        }
         return res;
       }).catch(function () { return caches.match(e.request); })
     );
