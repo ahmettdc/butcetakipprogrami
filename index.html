@@ -71,7 +71,14 @@
           </div>
           <button onClick="{{ nextMonth }}" style="border:0;background:transparent;padding:9px 12px;cursor:pointer;font:600 14px 'Plus Jakarta Sans';color:#55504a" style-hover="background:#f0efe8">›</button>
         </div>
+
+        <div style="display:flex;align-items:center;gap:6px">
+          <button onClick="{{ doExport }}" title="Verileri yedekle (dosya indir)" style="border:1px solid #ddd8ce;background:#fffefb;border-radius:4px;padding:9px 11px;cursor:pointer;font:600 12px 'Plus Jakarta Sans';color:#55504a" style-hover="background:#eef0e4;border-color:#5f6b3a">⤓ Yedekle</button>
+          <label title="Yedekten geri yükle" style="border:1px solid #ddd8ce;background:#fffefb;border-radius:4px;padding:9px 11px;cursor:pointer;font:600 12px 'Plus Jakarta Sans';color:#55504a;white-space:nowrap" style-hover="background:#eef0e4;border-color:#5f6b3a">⤒ Geri yükle<input type="file" accept="application/json,.json" onChange="{{ doImport }}" style="display:none" /></label>
+        </div>
       </div>
+
+      <div style="display:{{ backupNoteDisplay }};padding:0 clamp(14px,3vw,30px) 8px;font:600 11.5px 'Plus Jakarta Sans';color:#414a24">{{ backupNote }}</div>
 
       <div style="display:{{ topTabsDisplay }};gap:2px;padding:0 clamp(14px,3vw,30px) 0;overflow-x:auto">
         <sc-for list="{{ navItems }}" as="n" hint-placeholder-count="5">
@@ -799,93 +806,53 @@ const label = k => { const [y, m] = k.split('-').map(Number); return MN[m - 1] +
 const shortLabel = k => { const [y, m] = k.split('-').map(Number); return MS[m - 1] + (m === 1 ? ' ' + String(y).slice(2) : ''); };
 
 function seed() {
+  // Kişisel finansal veri İÇERMEZ — uygulama boş başlar, kullanıcı kendi verisini
+  // girer ya da yedekten geri yükler. (Site herkese açık adreste yayınlandığı için
+  // gerçek gelir/borç rakamları sayfaya gömülmez.)
+  const people = ['AHMET', 'ELİF'];
+  const incomeItems = ['Temel Maaş', 'Sabit Ek Ödeme', 'Teşvik', 'Nöbet & İcap'];
+  const categories = [
+    { id: 'konut', name: 'Konut', icon: '🏠', limit: 0, subs: ['Ev Kredisi', 'Aidat'] },
+    { id: 'faturalar', name: 'Faturalar', icon: '💡', limit: 0, subs: ['Elektrik', 'Su', 'Doğalgaz', 'İnternet', 'Telefon'] },
+    { id: 'krediKarti', name: 'Kredi Kartı', icon: '💳', limit: 0, subs: ['Kredi Kartı 1 (Elif)', 'Kredi Kartı 2 (Ziraat)', 'Kredi Kartı 3 (Vakıf)', 'Kredi Kartı 4 (YapıKredi)'] },
+    { id: 'bakici', name: 'Bakıcı', icon: '👶', limit: 0, subs: ['Bakıcı Parası'] },
+    { id: 'egitim', name: 'Eğitim', icon: '🎓', limit: 0, subs: ['KYK Ödemesi', 'Dershane'] },
+    { id: 'arac', name: 'Araç', icon: '🚗', limit: 0, subs: ['Servis/Bakım'] },
+    { id: 'vergiler', name: 'Vergiler', icon: '🏛️', limit: 0, subs: ['MTV', 'Ev Vergisi'] },
+    { id: 'diger', name: 'Diğer', icon: '📦', limit: 0, subs: ['Beklenmeyen Giderler'] }
+  ];
+  const savingsItems = ['Birikim', 'Acil Durum Fonu', 'Yatırım Fonu'];
+  const goldOrder = ['Çeyrek', 'Yarım', 'Ata / Tam', '22 Ayar Gram', '24 Ayar Gram', 'Külçe Altın'];
+
+  const income = {}; incomeItems.forEach(it => { income[it] = {}; people.forEach(p => { income[it][p] = 0; }); });
+  const expenses = {}; categories.forEach(c => c.subs.forEach(x => { expenses[x] = 0; }));
+  const savings = {}; savingsItems.forEach(x => { savings[x] = 0; });
+  const portfolio = {}; goldOrder.forEach(t => { portfolio[t] = 0; });
+  const prices = {}; goldOrder.forEach(t => { prices[t] = 0; });
+  const months = {}; months[TODAY] = { carryover: 0, income: income, expenses: expenses, savings: savings };
+
   return {
     version: VER,
-    people: ['AHMET', 'ELİF'],
-    incomeItems: ['Temel Maaş', 'Sabit Ek Ödeme', 'Teşvik', 'Nöbet & İcap'],
-    categories: [
-      { id: 'konut', name: 'Konut', icon: '🏠', limit: 92000, subs: ['Ev Kredisi', 'Aidat'] },
-      { id: 'faturalar', name: 'Faturalar', icon: '💡', limit: 3500, subs: ['Elektrik', 'Su', 'Doğalgaz', 'İnternet', 'Telefon'] },
-      { id: 'krediKarti', name: 'Kredi Kartı', icon: '💳', limit: 175000, subs: ['Kredi Kartı 1 (Elif)', 'Kredi Kartı 2 (Ziraat)', 'Kredi Kartı 3 (Vakıf)', 'Kredi Kartı 4 (YapıKredi)'] },
-      { id: 'bakici', name: 'Bakıcı', icon: '👶', limit: 36000, subs: ['Bakıcı Parası'] },
-      { id: 'egitim', name: 'Eğitim', icon: '🎓', limit: 19040, subs: ['KYK Ödemesi', 'Dershane'] },
-      { id: 'arac', name: 'Araç', icon: '🚗', limit: 6000, subs: ['Servis/Bakım'] },
-      { id: 'vergiler', name: 'Vergiler', icon: '🏛️', limit: 5000, subs: ['MTV', 'Ev Vergisi'] },
-      { id: 'diger', name: 'Diğer', icon: '📦', limit: 15000, subs: ['Beklenmeyen Giderler'] }
-    ],
+    people: people,
+    incomeItems: incomeItems,
+    categories: categories,
     transactions: {},
     txMemory: {},
-    savingsItems: ['Birikim', 'Acil Durum Fonu', 'Yatırım Fonu'],
+    savingsItems: savingsItems,
     cardSubMap: { elif: 'Kredi Kartı 1 (Elif)', ziraat: 'Kredi Kartı 2 (Ziraat)', vakif: 'Kredi Kartı 3 (Vakıf)', yapikredi: 'Kredi Kartı 4 (YapıKredi)' },
-    months: {
-      '2026-06': {
-        carryover: 62689.14,
-        income: { 'Temel Maaş': { 'AHMET': 95947.87, 'ELİF': 86471.4 }, 'Sabit Ek Ödeme': { 'AHMET': 42861.64, 'ELİF': 32384.34 }, 'Teşvik': { 'AHMET': 44042.9, 'ELİF': 20307.62 }, 'Nöbet & İcap': { 'AHMET': 9123.31, 'ELİF': 0 } },
-        expenses: { 'Ev Kredisi': 87000, 'Aidat': 3000, 'Elektrik': 475, 'Su': 425.37, 'Doğalgaz': 557.73, 'İnternet': 1000, 'Telefon': 447.08, 'Kredi Kartı 1 (Elif)': 32434.01, 'Kredi Kartı 2 (Ziraat)': 66195.99, 'Kredi Kartı 3 (Vakıf)': 55685.72, 'Kredi Kartı 4 (YapıKredi)': 17716.5, 'Bakıcı Parası': 33000, 'KYK Ödemesi': 470, 'Dershane': 18570, 'Servis/Bakım': 0, 'MTV': 0, 'Ev Vergisi': 0, 'Beklenmeyen Giderler': 11500 },
-        savings: { 'Birikim': 0, 'Acil Durum Fonu': 0, 'Yatırım Fonu': 0 }
-      },
-      '2026-07': {
-        carryover: 66301.87,
-        income: { 'Temel Maaş': { 'AHMET': 114415.41, 'ELİF': 96242.75 }, 'Sabit Ek Ödeme': { 'AHMET': 42861.64, 'ELİF': 32384.34 }, 'Teşvik': { 'AHMET': 66445.2, 'ELİF': 19863.87 }, 'Nöbet & İcap': { 'AHMET': 14544.48, 'ELİF': 0 } },
-        expenses: { 'Ev Kredisi': 87000, 'Aidat': 3000, 'Elektrik': 545, 'Su': 541.74, 'Doğalgaz': 685.48, 'İnternet': 1000, 'Telefon': 447.08, 'Kredi Kartı 1 (Elif)': 49200, 'Kredi Kartı 2 (Ziraat)': 85275, 'Kredi Kartı 3 (Vakıf)': 31275.7, 'Kredi Kartı 4 (YapıKredi)': 18643.18, 'Bakıcı Parası': 36000, 'KYK Ödemesi': 470, 'Dershane': 18570, 'Servis/Bakım': 0, 'MTV': 4681, 'Ev Vergisi': 0, 'Beklenmeyen Giderler': 26400 },
-        savings: { 'Birikim': 0, 'Acil Durum Fonu': 0, 'Yatırım Fonu': 0 }
-      },
-      '2026-08': {
-        carryover: 96193.35,
-        income: { 'Temel Maaş': { 'AHMET': 109720.59, 'ELİF': 96569.17 }, 'Sabit Ek Ödeme': { 'AHMET': 48656.57, 'ELİF': 36762.73 }, 'Teşvik': { 'AHMET': 80422.74, 'ELİF': 27893.92 }, 'Nöbet & İcap': { 'AHMET': 17411.45, 'ELİF': 0 } },
-        expenses: { 'Ev Kredisi': 87000, 'Aidat': 4500, 'Elektrik': 609, 'Su': 493.18, 'Doğalgaz': 0, 'İnternet': 1000, 'Telefon': 0, 'Kredi Kartı 1 (Elif)': 53933.54, 'Kredi Kartı 2 (Ziraat)': 86595.24, 'Kredi Kartı 3 (Vakıf)': 21138.44, 'Kredi Kartı 4 (YapıKredi)': 22275.85, 'Bakıcı Parası': 36000, 'KYK Ödemesi': 470, 'Dershane': 18570, 'Servis/Bakım': 0, 'MTV': 0, 'Ev Vergisi': 0, 'Beklenmeyen Giderler': 10000 },
-        savings: { 'Birikim': 173000, 'Acil Durum Fonu': 0, 'Yatırım Fonu': 0 }
-      }
-    },
+    months: months,
     installmentCards: [
       { id: 'ziraat', name: 'Ziraat Bankası', short: 'Ziraat', color: '#1e5fbf' },
       { id: 'vakif', name: 'VakıfBank', short: 'Vakıf', color: '#8b5cf6' },
       { id: 'yapikredi', name: 'Yapı Kredi', short: 'YapıKredi', color: '#dc2626' },
       { id: 'elif', name: 'Elif', short: 'Elif', color: '#16a34a' }
     ],
-    installments: [
-      { card: 'ziraat', desc: 'Amazon (IYZICO)', total: 116982.66, count: 9, monthly: 12998.07, start: '2026-01' },
-      { card: 'ziraat', desc: 'Sompo Japan (Sigorta)', total: 8739.01, count: 3, monthly: 2913, start: '2026-02' },
-      { card: 'ziraat', desc: 'Sompo Japan (Sigorta)', total: 8396.1, count: 3, monthly: 2798.7, start: '2026-02' },
-      { card: 'ziraat', desc: 'Brisa (SanalPOS)', total: 6200, count: 5, monthly: 1240, start: '2026-03' },
-      { card: 'ziraat', desc: 'SGK Ödeme (Sonradan Taksit)', total: 12138.53, count: 4, monthly: 3034.63, start: '2026-04' },
-      { card: 'ziraat', desc: 'Global Design (Sonradan Taksit)', total: 12000, count: 4, monthly: 3000, start: '2026-04' },
-      { card: 'ziraat', desc: 'Adil Işık', total: 5999.95, count: 3, monthly: 1999.99, start: '2026-07' },
-      { card: 'ziraat', desc: 'A City Ankara Outlet', total: 9988.2, count: 4, monthly: 2497.05, start: '2026-07' },
-      { card: 'ziraat', desc: 'Macun Ford Servis', total: 16886.68, count: 3, monthly: 5628.9, start: '2026-07' },
-      { card: 'ziraat', desc: 'Sompo Japan (Sigorta)', total: 8704.96, count: 3, monthly: 2901.66, start: '2026-07' },
-      { card: 'ziraat', desc: 'Sompo Japan (Sigorta)', total: 14113.94, count: 3, monthly: 4704.66, start: '2026-07' },
-      { card: 'ziraat', desc: 'ETSTUR (Ziraat)', total: 54000, count: 6, monthly: 9000, start: '2026-08' },
-      { card: 'vakif', desc: 'Sompo Sigorta AŞ', total: 15524, count: 8, monthly: 1940.5, start: '2025-07' },
-      { card: 'vakif', desc: 'hbomax.com (İyzico)', total: 2298, count: 12, monthly: 191.5, start: '2025-10' },
-      { card: 'vakif', desc: 'MediaMarkt (Sanal)', total: 10599, count: 3, monthly: 3533, start: '2026-01' },
-      { card: 'vakif', desc: 'Idefix.com', total: 6498, count: 4, monthly: 1624.5, start: '2026-01' },
-      { card: 'vakif', desc: 'Amazon.com.tr (İyzico)', total: 6999, count: 6, monthly: 1166.5, start: '2026-01' },
-      { card: 'vakif', desc: 'Setur Servis Turistik', total: 39921, count: 3, monthly: 13307, start: '2026-05' },
-      { card: 'vakif', desc: 'MediaMarkt (Ankara)', total: 8797.5, count: 3, monthly: 2932.5, start: '2026-05' },
-      { card: 'yapikredi', desc: 'HepsiBurada (29.11.25)', total: 69499, count: 9, monthly: 7722.11, start: '2025-12' },
-      { card: 'yapikredi', desc: 'HepsiBurada (24.12.25)', total: 25885.8, count: 9, monthly: 2876.2, start: '2026-01' },
-      { card: 'yapikredi', desc: 'HepsiBurada (09.02.26)', total: 1756.82, count: 3, monthly: 585.61, start: '2026-03' },
-      { card: 'yapikredi', desc: 'HepsiBurada (15.05.26)', total: 42709.24, count: 6, monthly: 7118.2, start: '2026-06' },
-      { card: 'yapikredi', desc: 'HepsiBurada (22.07.26)', total: 23015.35, count: 7, monthly: 3287.91, start: '2026-08' },
-      { card: 'elif', desc: 'ETSTUR (Tatil)', total: 73150, count: 3, monthly: 24383.33, start: '2026-03' },
-      { card: 'elif', desc: 'Mango (Armada)', total: 3402.99, count: 2, monthly: 1701.5, start: '2026-02' },
-      { card: 'elif', desc: 'Mavi (Forum)', total: 5199.97, count: 4, monthly: 1299.99, start: '2026-03' },
-      { card: 'elif', desc: 'Antares Gülsa (Sonradan Taksit)', total: 3463.85, count: 4, monthly: 865.96, start: '2026-05' }
-    ],
-    goal: 2000000,
-    gold: {
-      order: ['Çeyrek', 'Yarım', 'Ata / Tam', '22 Ayar Gram', '24 Ayar Gram', 'Külçe Altın'],
-      portfolio: { 'Çeyrek': 12, 'Yarım': 1, 'Ata / Tam': 0, '22 Ayar Gram': 3, '24 Ayar Gram': 4, 'Külçe Altın': 175 },
-      prices: { 'Çeyrek': 11400, 'Yarım': 22800, 'Ata / Tam': 45600, '22 Ayar Gram': 6320, '24 Ayar Gram': 6900, 'Külçe Altın': 6900 },
-      purchases: [
-        { date: '2026-08-19', type: 'Külçe Altın', amount: 10, cost: 68000 },
-        { date: '2026-08-20', type: 'Külçe Altın', amount: 15, cost: 103500 }
-      ]
-    },
+    installments: [],
+    goal: 0,
+    gold: { order: goldOrder, portfolio: portfolio, prices: prices, purchases: [] },
     fx: [
-      { code: 'USD', label: 'Amerikan Doları', amount: 0, rate: 42.5 },
-      { code: 'EUR', label: 'Euro', amount: 0, rate: 49.8 },
+      { code: 'USD', label: 'Amerikan Doları', amount: 0, rate: 0 },
+      { code: 'EUR', label: 'Euro', amount: 0, rate: 0 },
       { code: 'TRY', label: 'Vadeli TL Hesap', amount: 0, rate: 1 }
     ]
   };
@@ -894,7 +861,7 @@ function seed() {
 class Component extends DCLogic {
   constructor(p) {
     super(p);
-    this.state = { data: this.load(), tab: 'ozet', month: TODAY, bp: this.bpOf(), sheet: null, form: {}, manual: false, openCat: null, hideDone: false, txInput: '', txBusy: false, txStatus: 'Metni yapıştır, Claude ayıklasın', txState: 'idle', priceStatus: { state: 'idle', text: 'Fiyatlar bekleniyor…' } };
+    this.state = { data: this.load(), tab: 'ozet', month: TODAY, bp: this.bpOf(), sheet: null, form: {}, manual: false, openCat: null, hideDone: false, txInput: '', txBusy: false, txStatus: 'Metni yapıştır, Claude ayıklasın', txState: 'idle', priceStatus: { state: 'idle', text: 'Fiyatlar bekleniyor…' }, backupNote: '' };
   }
   load() {
     try {
@@ -925,6 +892,40 @@ class Component extends DCLogic {
       if (s) { const p = JSON.parse(s); if (p && p.version === VER) return p; }
     } catch (e) {}
     return JSON.parse(JSON.stringify(this.state.data));
+  }
+  // --- Yedekleme ---
+  exportData() {
+    try {
+      const d = this.fresh();
+      const blob = new Blob([JSON.stringify(d, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'aile-butce-yedek-' + todayISO() + '.json';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      this.setState({ backupNote: 'Yedek indirildi · ' + todayISO() });
+    } catch (e) {
+      this.setState({ backupNote: 'Yedek alınamadı: ' + (e && e.message ? e.message : 'hata') });
+    }
+  }
+  importData(file) {
+    if (!file) return;
+    const self = this, fr = new FileReader();
+    fr.onload = function () {
+      try {
+        const d = JSON.parse(String(fr.result));
+        if (!d || typeof d !== 'object' || !d.months || !d.categories) throw new Error('geçersiz yedek dosyası');
+        const ayCount = Object.keys(d.months).length;
+        if (!window.confirm('Yedekteki ' + ayCount + ' ay bu cihazdaki mevcut verinin yerine yüklenecek. Devam edilsin mi?')) return;
+        d.version = VER;
+        self.save(d);
+        self.setState({ backupNote: ayCount + ' ay geri yüklendi' });
+      } catch (e) {
+        self.setState({ backupNote: 'Geri yüklenemedi: ' + (e && e.message ? e.message : 'hata') });
+      }
+    };
+    fr.onerror = function () { self.setState({ backupNote: 'Dosya okunamadı' }); };
+    fr.readAsText(file);
   }
   // Başka bir sekme/pencere yazdıysa ya da uygulamaya geri dönüldüyse veriyi tazele
   syncFromStorage() {
@@ -1075,7 +1076,7 @@ class Component extends DCLogic {
     const d = this.state.data, ks = this.actualKeys(), out = [];
     let bal = 0;
     ks.forEach(k => { const t = this.monthTotals(k); out.push({ k: k, t: t }); bal = t.net; });
-    const last = ks[ks.length - 1];
+    const last = ks.length ? ks[ks.length - 1] : TODAY;   // hiç ay yoksa çökmesin
     for (let i = 1; i <= n; i++) {
       const mk = shift(last, i);
       const have = d.months[mk];
@@ -1620,6 +1621,9 @@ class Component extends DCLogic {
       monthLabel: label(mk), monthBadge: monthMissing ? 'Tahmin' : mk === TODAY ? 'Bu ay' : 'Kayıtlı', monthBadgeColor: monthMissing ? '#a8a29a' : mk === TODAY ? GOLD : OLIVE,
       monthMissing: monthMissing,
       prevMonth: () => this.setState({ month: shift(mk, -1) }), nextMonth: () => this.setState({ month: shift(mk, 1) }),
+      doExport: () => this.exportData(),
+      doImport: e => { const f = e.target.files && e.target.files[0]; this.importData(f); e.target.value = ''; },
+      backupNote: this.state.backupNote, backupNoteDisplay: this.state.backupNote ? 'block' : 'none',
       materialize: () => { const cd = this.ensure(mk); this.save(cd); },
       kpis: kpis, forecast: forecast, balanceLine: balanceLine, zeroY: yOf(0).toFixed(2), forecastNotes: forecastNotes,
       catRows: catRows, people: people, personExpense: personExpense, endingSoon: endingSoon,
