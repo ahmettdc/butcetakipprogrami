@@ -778,7 +778,10 @@ const VER = 4;
 const TX_START = '2026-09';
 const MN = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
 const MS = ['OCA','ŞUB','MAR','NİS','MAY','HAZ','TEM','AĞU','EYL','EKİ','KAS','ARA'];
-const TODAY = '2026-08';
+// Gerçek takvim ayı (sabit değil) — ay değişince uygulama kendiliğinden ilerler
+const TODAY = (function () { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); })();
+
+const todayISO = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 
 const OLIVE = '#5f6b3a', OLIVE_D = '#414a24', GOLD = '#b5892b', RUST = '#a2452c', INK = '#1a1815', MUT = '#55504a', DIM = '#8a837a';
 
@@ -914,13 +917,43 @@ class Component extends DCLogic {
     return d;
   }
   save(d) { this.setState({ data: d }); try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {} }
+  // Her yazma, diskteki EN GÜNCEL veriyi temel alır. Böylece eski anlık görüntü
+  // tutan ikinci bir sekme/PWA, başka yerde yapılan kayıtları (örn. yeni ay) ezemez.
+  fresh() {
+    try {
+      const s = localStorage.getItem(KEY);
+      if (s) { const p = JSON.parse(s); if (p && p.version === VER) return p; }
+    } catch (e) {}
+    return JSON.parse(JSON.stringify(this.state.data));
+  }
+  // Başka bir sekme/pencere yazdıysa ya da uygulamaya geri dönüldüyse veriyi tazele
+  syncFromStorage() {
+    try {
+      const s = localStorage.getItem(KEY);
+      if (!s) return;
+      if (s === JSON.stringify(this.state.data)) return;
+      const p = JSON.parse(s);
+      if (p && p.version === VER) this.setState({ data: p });
+    } catch (e) {}
+  }
   bpOf() { const w = typeof window !== 'undefined' ? window.innerWidth : 1280; return w < 720 ? 'phone' : w < 1120 ? 'tablet' : 'desktop'; }
   componentDidMount() {
     this._r = () => { const b = this.bpOf(); if (b !== this.state.bp) this.setState({ bp: b }); };
     window.addEventListener('resize', this._r);
+    this._onStorage = e => { if (!e || e.key === KEY) this.syncFromStorage(); };
+    window.addEventListener('storage', this._onStorage);
+    this._onWake = () => { if (document.visibilityState === 'visible') this.syncFromStorage(); };
+    document.addEventListener('visibilitychange', this._onWake);
+    window.addEventListener('focus', this._onWake);
+    window.addEventListener('pageshow', this._onWake);
     this.fetchPrices();
   }
-  componentWillUnmount() { if (this._r) window.removeEventListener('resize', this._r); this._dead = true; }
+  componentWillUnmount() {
+    if (this._r) window.removeEventListener('resize', this._r);
+    if (this._onStorage) window.removeEventListener('storage', this._onStorage);
+    if (this._onWake) { document.removeEventListener('visibilitychange', this._onWake); window.removeEventListener('focus', this._onWake); window.removeEventListener('pageshow', this._onWake); }
+    this._dead = true;
+  }
 
   fetchPrices() {
     const self = this;
@@ -954,7 +987,7 @@ class Component extends DCLogic {
         const tam = val(flat, ['tam-altin', 'ata-altin', 't', 'ata']) || Math.round(ceyrek * 4);
         const usd = val(flat, ['usd', 'dolar', 'usdtry']);
         const eur = val(flat, ['eur', 'euro', 'eurtry']);
-        const x = JSON.parse(JSON.stringify(self.state.data));
+        const x = self.fresh();
         x.gold.prices['24 Ayar Gram'] = Math.round(gram);
         x.gold.prices['Külçe Altın'] = Math.round(gram);
         x.gold.prices['22 Ayar Gram'] = Math.round(gram * 0.916);
@@ -976,7 +1009,7 @@ class Component extends DCLogic {
       .then(j => {
         if (self._dead) return;
         if (!j || !j.prices || !Object.keys(j.prices).length) throw new Error('boş');
-        const x = JSON.parse(JSON.stringify(self.state.data));
+        const x = self.fresh();
         Object.keys(j.prices).forEach(k => { if (x.gold.prices[k] !== undefined && +j.prices[k]) x.gold.prices[k] = +j.prices[k]; });
         if (+j.usd) { const f = x.fx.find(z => z.code === 'USD'); if (f) f.rate = +j.usd; }
         if (+j.eur) { const f = x.fx.find(z => z.code === 'EUR'); if (f) f.rate = +j.eur; }
@@ -1068,18 +1101,18 @@ class Component extends DCLogic {
 
   // ---- mutations ----
   ensure(mk) {
-    const d = JSON.parse(JSON.stringify(this.state.data));
+    const d = this.fresh();
     if (!d.months[mk]) { const dm = this.draftMonth(mk); const prev = this.projection(18).find(x => x.k === mk); dm.carryover = prev ? Math.round(prev.t.carry) : 0; delete dm.draft; d.months[mk] = dm; }
     return d;
   }
   setIncome(mk, item, person, v) { const d = this.ensure(mk); if (!d.months[mk].income[item]) d.months[mk].income[item] = {}; d.months[mk].income[item][person] = v; this.save(d); }
   setExpense(mk, sub, v) { const d = this.ensure(mk); d.months[mk].expenses[sub] = v; this.save(d); }
   setSaving(mk, item, v) { const d = this.ensure(mk); d.months[mk].savings[item] = v; this.save(d); }
-  setLimit(cid, v) { const d = JSON.parse(JSON.stringify(this.state.data)); const c = d.categories.find(x => x.id === cid); if (c) c.limit = v; this.save(d); }
+  setLimit(cid, v) { const d = this.fresh(); const c = d.categories.find(x => x.id === cid); if (c) c.limit = v; this.save(d); }
   num(e) { const v = parseFloat(String(e.target.value).replace(',', '.')); return isNaN(v) ? 0 : v; }
   isConf(mk, k) { const c = this.state.data.confirmed; return !!(c && c[mk] && c[mk][k]); }
   toggleConf(mk, k) {
-    const d = JSON.parse(JSON.stringify(this.state.data));
+    const d = this.fresh();
     if (!d.confirmed) d.confirmed = {};
     if (!d.confirmed[mk]) d.confirmed[mk] = {};
     if (d.confirmed[mk][k]) delete d.confirmed[mk][k]; else d.confirmed[mk][k] = 1;
@@ -1186,7 +1219,7 @@ class Component extends DCLogic {
       const arr = JSON.parse(m ? m[0] : out);
       if (!Array.isArray(arr) || !arr.length) throw new Error('boş sonuç');
       const valid = {}; this.allSubs().forEach(o => { valid[o.value] = true; });
-      const x = JSON.parse(JSON.stringify(this.state.data));
+      const x = this.fresh();
       if (!x.transactions) x.transactions = {};
       if (!x.transactions[mk]) x.transactions[mk] = [];
       let n = 0;
@@ -1417,22 +1450,22 @@ class Component extends DCLogic {
     const goldRows = d.gold.order.map(t => ({
       label: t, amount: +d.gold.portfolio[t] || 0, price: +d.gold.prices[t] || 0, priceF: fmt(+d.gold.prices[t] || 0),
       value: fmt((+d.gold.portfolio[t] || 0) * (+d.gold.prices[t] || 0)),
-      setAmount: e => { const x = JSON.parse(JSON.stringify(d)); x.gold.portfolio[t] = this.num(e); this.save(x); },
-      setPrice: e => { const x = JSON.parse(JSON.stringify(d)); x.gold.prices[t] = this.num(e); this.save(x); }
+      setAmount: e => { const x = this.fresh(); x.gold.portfolio[t] = this.num(e); this.save(x); },
+      setPrice: e => { const x = this.fresh(); x.gold.prices[t] = this.num(e); this.save(x); }
     }));
     const fxRows = d.fx.map((f, i) => ({
       label: f.label, amount: +f.amount || 0, rate: +f.rate || 0, value: fmt((+f.amount || 0) * (+f.rate || 0)),
       rateF: (+f.rate || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       textDisplay: this.state.manual ? 'none' : 'inline-block', inputDisplay: this.state.manual ? 'block' : 'none',
-      setAmount: e => { const x = JSON.parse(JSON.stringify(d)); x.fx[i].amount = this.num(e); this.save(x); },
-      setRate: e => { const x = JSON.parse(JSON.stringify(d)); x.fx[i].rate = this.num(e); this.save(x); }
+      setAmount: e => { const x = this.fresh(); x.fx[i].amount = this.num(e); this.save(x); },
+      setRate: e => { const x = this.fresh(); x.fx[i].rate = this.num(e); this.save(x); }
     }));
     const gv = this.goldValue(), fv = this.fxValue(), pv = gv + fv, goal = +d.goal || 0;
     const invested = d.gold.purchases.reduce((s, p) => s + (+p.cost || 0), 0);
     const savingsKpis = [
       { label: 'Altın', value: fmt(gv) + ' ₺', color: GOLD, sub: fmt(d.gold.portfolio['Külçe Altın'] || 0) + ' gr külçe + ziynet' },
       { label: 'Döviz & TL', value: fmt(fv) + ' ₺', color: OLIVE, sub: fv ? 'kurlar otomatik güncellenir' : 'miktar gir, kur otomatik gelir' },
-      { label: 'Bütçeden ayrılan', value: fmt(this.savedCash()) + ' ₺', color: INK, sub: 'Haziran–Ağustos toplamı' },
+      { label: 'Bütçeden ayrılan', value: fmt(this.savedCash()) + ' ₺', color: INK, sub: (function () { const ks = this.actualKeys(); return ks.length ? (ks.length > 1 ? label(ks[0]) + ' – ' + label(ks[ks.length - 1]) : label(ks[0])) + ' toplamı' : 'kayıt yok'; }).call(this) },
       { label: 'Alım defterine göre maliyet', value: fmt(invested) + ' ₺', color: MUT, sub: d.gold.purchases.length + ' kayıt' }
     ];
     const purchases = d.gold.purchases.slice().reverse().map(p => ({ date: p.date.slice(5).split('-').reverse().join('.'), type: p.type, amount: fmt(p.amount) + (p.type.indexOf('Gram') > -1 || p.type === 'Külçe Altın' ? ' gr' : ' ad'), cost: fmt(p.cost) + ' ₺', unit: p.amount ? fmt(p.cost / p.amount) + '/br' : '—' }));
@@ -1462,7 +1495,7 @@ class Component extends DCLogic {
     const yearKpis = [
       { label: 'Ortalama aylık gelir', value: fmt(avgInc), color: OLIVE, sub: proj.length + ' ay ortalaması' },
       { label: 'Ortalama aylık gider', value: fmt(avgExp), color: RUST, sub: 'kart taksitleri dahil' },
-      { label: 'Ortalama tasarruf payı', value: Math.round((avgInc - avgExp) / avgInc * 100) + '%', color: INK, sub: fmt(avgInc - avgExp) + ' ₺/ay' },
+      { label: 'Ortalama tasarruf payı', value: (avgInc ? Math.round((avgInc - avgExp) / avgInc * 100) : 0) + '%', color: INK, sub: fmt(avgInc - avgExp) + ' ₺/ay' },
       { label: 'Dönem sonu bakiye', value: sgn(horizon ? horizon.t.net : 0), color: horizon && horizon.t.net < 0 ? RUST : OLIVE_D, sub: horizon ? label(horizon.k) : '—' }
     ];
 
@@ -1474,14 +1507,14 @@ class Component extends DCLogic {
       date: t.date || '—', desc: t.desc, sub: t.sub, amount: +t.amount || 0, options: subOpts,
       selBg: t.sub === 'Beklenmeyen Giderler' ? '#f9f2e0' : '#fffefb',
       setSub: e => {
-        const v = e.target.value, x = JSON.parse(JSON.stringify(d));
+        const v = e.target.value, x = this.fresh();
         x.transactions[txMk][i].sub = v;
         if (!x.txMemory) x.txMemory = {};
         const k = this.normDesc(t.desc); if (k) x.txMemory[k] = v;
         this.save(x);
       },
-      setAmount: e => { const x = JSON.parse(JSON.stringify(d)); x.transactions[txMk][i].amount = this.num(e); this.save(x); },
-      remove: () => { const x = JSON.parse(JSON.stringify(d)); x.transactions[txMk].splice(i, 1); this.save(x); }
+      setAmount: e => { const x = this.fresh(); x.transactions[txMk][i].amount = this.num(e); this.save(x); },
+      remove: () => { const x = this.fresh(); x.transactions[txMk].splice(i, 1); this.save(x); }
     }));
     const txByCat = {};
     txItems.forEach(t => { const c = subToCat[t.sub]; if (!c) return; if (!txByCat[c.id]) txByCat[c.id] = { c: c, total: 0, n: 0 }; txByCat[c.id].total += +t.amount || 0; txByCat[c.id].n++; });
@@ -1525,7 +1558,7 @@ class Component extends DCLogic {
       sheetNote = 'Alım portföye eklenir ve alım defterine kaydedilir.';
       sheetFields = [
         { label: 'Tür', isSelect: true, value: f.type || d.gold.order[0], options: d.gold.order.map(t => ({ value: t, label: t })), set: set('type') },
-        { label: 'Tarih', isInput: true, type: 'date', value: f.date || '2026-08-29', ph: '', set: set('date') },
+        { label: 'Tarih', isInput: true, type: 'date', value: f.date || todayISO(), ph: '', set: set('date') },
         { label: 'Miktar', isInput: true, type: 'number', value: f.amount === undefined ? '' : f.amount, ph: '0', set: set('amount') },
         { label: 'Toplam maliyet ₺', isInput: true, type: 'number', value: f.cost === undefined ? '' : f.cost, ph: '0', set: set('cost') }
       ];
@@ -1542,11 +1575,11 @@ class Component extends DCLogic {
         else { const cd = this.ensure(m); cd.months[m].expenses[item] = (+cd.months[m].expenses[item] || 0) + amt; this.save(cd); }
       } else if (sheet === 'taksit') {
         const total = parseFloat(String(st.total || '0').replace(',', '.')) || 0, count = parseInt(st.count || '0', 10) || 0;
-        if (total && count) { const x = JSON.parse(JSON.stringify(d)); x.installments.push({ card: st.card || d.installmentCards[0].id, desc: st.desc || 'Yeni taksit', total: total, count: count, monthly: Math.round(total / count * 100) / 100, start: st.start || TODAY }); this.save(x); }
+        if (total && count) { const x = this.fresh(); x.installments.push({ card: st.card || d.installmentCards[0].id, desc: st.desc || 'Yeni taksit', total: total, count: count, monthly: Math.round(total / count * 100) / 100, start: st.start || TODAY }); this.save(x); }
       } else if (sheet === 'alim') {
         const amt = parseFloat(String(st.amount || '0').replace(',', '.')) || 0, cost = parseFloat(String(st.cost || '0').replace(',', '.')) || 0;
         const type = st.type || d.gold.order[0];
-        if (amt) { const x = JSON.parse(JSON.stringify(d)); x.gold.portfolio[type] = (+x.gold.portfolio[type] || 0) + amt; x.gold.purchases.push({ date: st.date || '2026-08-29', type: type, amount: amt, cost: cost }); this.save(x); }
+        if (amt) { const x = this.fresh(); x.gold.portfolio[type] = (+x.gold.portfolio[type] || 0) + amt; x.gold.purchases.push({ date: st.date || todayISO(), type: type, amount: amt, cost: cost }); this.save(x); }
       }
       this.setState({ sheet: null, form: {} });
     };
@@ -1605,7 +1638,7 @@ class Component extends DCLogic {
       manualBd: this.state.manual ? '#dbe0c6' : '#ddd8ce',
       manualFg: this.state.manual ? OLIVE_D : MUT,
       portfolioTotal: fmt(pv), portfolioBreak: 'Altın ' + fmt(gv) + ' ₺ · Döviz & TL ' + fmt(fv) + ' ₺',
-      goal: goal, setGoal: e => { const x = JSON.parse(JSON.stringify(d)); x.goal = this.num(e); this.save(x); },
+      goal: goal, setGoal: e => { const x = this.fresh(); x.goal = this.num(e); this.save(x); },
       goalPctW: goal ? Math.min(100, pv / goal * 100) : 0, goalPctLabel: goal ? Math.round(pv / goal * 100) + '%' : '—', goalRemain: fmt(Math.max(0, goal - pv)),
       yearHeads: yearHeads, yearRows: yearRows, yearCompare: yearCompare, yearKpis: yearKpis,
       horizonBalance: horizon ? sgn(horizon.t.net) : '—', horizonColor: horizon && horizon.t.net < 0 ? RUST : OLIVE_D, horizonNote: horizon ? label(horizon.k) + ' tahmini' : '',
