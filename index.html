@@ -575,6 +575,50 @@
             </div>
           </section>
 
+          <section style="border:1px solid #ddd8ce;border-radius:4px;background:#fffefb;overflow:hidden">
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:16px 18px 12px">
+              <div style="display:flex;flex-direction:column;gap:3px;margin-right:auto">
+                <h2 style="margin:0;font:700 15px 'Plus Jakarta Sans';letter-spacing:-0.2px">Portföy değeri</h2>
+                <span style="font:500 11.5px 'Plus Jakarta Sans';color:#8a837a">Altın varlığının gün gün TL karşılığı · noktaya dokun</span>
+              </div>
+              <div style="display:flex;gap:4px;flex-wrap:wrap">
+                <sc-for list="{{ chartRanges }}" as="r" hint-placeholder-count="4">
+                  <button onClick="{{ r.go }}" style="border:1px solid {{ r.bd }};background:{{ r.bg }};color:{{ r.fg }};border-radius:4px;padding:7px 12px;cursor:pointer;font:600 11.5px 'Plus Jakarta Sans'" style-hover="background:#f0efe8">{{ r.label }}</button>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="display:{{ chartDisplay }}">
+              <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:0 18px 12px">
+                <span style="font:600 clamp(22px,2.6vw,30px) 'Roboto Mono',monospace;letter-spacing:-1px;line-height:1">{{ chartValue }}</span>
+                <span style="font:500 11px 'Roboto Mono',monospace;color:#8a837a">{{ chartDate }}</span>
+                <span style="margin-left:auto;font:600 12px 'Roboto Mono',monospace;color:{{ chartChangeColor }};background:{{ chartChangeBg }};border-radius:4px;padding:5px 9px">{{ chartChange }}</span>
+              </div>
+
+              <div style="position:relative;height:200px;margin:0 18px;border-bottom:1px solid #ece8e0;border-top:1px solid #f4f1ea">
+                <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;overflow:visible">
+                  <path d="{{ chartArea }}" fill="#b5892b" fill-opacity="0.10" />
+                  <polyline points="{{ chartLine }}" fill="none" stroke="#b5892b" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round" />
+                </svg>
+                <div style="display:{{ chartSelDisplay }};position:absolute;top:0;bottom:0;left:{{ chartSelLeft }};width:1px;background:#d8cfb8;pointer-events:none"></div>
+                <div style="display:{{ chartSelDisplay }};position:absolute;left:{{ chartSelLeft }};top:{{ chartSelTop }};width:9px;height:9px;margin:-5px 0 0 -5px;border-radius:50%;background:#b5892b;border:2px solid #fffefb;pointer-events:none"></div>
+                <div style="position:absolute;inset:0;display:flex">
+                  <sc-for list="{{ chartCols }}" as="c" hint-placeholder-count="12">
+                    <div onClick="{{ c.go }}" style="position:absolute;left:{{ c.left }};width:{{ c.width }};top:0;bottom:0;cursor:pointer"></div>
+                  </sc-for>
+                </div>
+                <span style="position:absolute;top:4px;left:2px;font:500 9.5px 'Roboto Mono',monospace;color:#a8a29a;pointer-events:none">{{ chartMax }}</span>
+                <span style="position:absolute;bottom:4px;left:2px;font:500 9.5px 'Roboto Mono',monospace;color:#a8a29a;pointer-events:none">{{ chartMin }}</span>
+              </div>
+
+              <div style="display:flex;justify-content:space-between;padding:7px 18px 16px;font:500 10px 'Roboto Mono',monospace;color:#a8a29a">
+                <span>{{ chartFirst }}</span><span>{{ chartLast }}</span>
+              </div>
+            </div>
+
+            <div style="display:{{ chartEmptyDisplay }};padding:24px 18px;text-align:center;font:500 12.5px 'Plus Jakarta Sans';color:#8a837a">Geçmiş veri yükleniyor…</div>
+          </section>
+
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:clamp(14px,2vw,22px);align-items:start">
             <section style="border:1px solid #ddd8ce;border-radius:4px;background:#fffefb;overflow:hidden">
               <div style="display:flex;align-items:baseline;gap:10px;padding:15px 18px 12px">
@@ -863,7 +907,7 @@ function seed() {
 class Component extends DCLogic {
   constructor(p) {
     super(p);
-    this.state = { data: this.load(), tab: 'ozet', month: TODAY, bp: this.bpOf(), sheet: null, form: {}, manual: false, openCat: null, hideDone: true, txInput: '', txBusy: false, txStatus: 'Metni yapıştır, Claude ayıklasın', txState: 'idle', priceStatus: { state: 'idle', text: 'Fiyatlar bekleniyor…' }, backupNote: '' };
+    this.state = { data: this.load(), tab: 'ozet', month: TODAY, bp: this.bpOf(), sheet: null, form: {}, manual: false, openCat: null, hideDone: true, chartRange: 'ay', chartSel: -1, history: null, txInput: '', txBusy: false, txStatus: 'Metni yapıştır, Claude ayıklasın', txState: 'idle', priceStatus: { state: 'idle', text: 'Fiyatlar bekleniyor…' }, backupNote: '' };
   }
   load() {
     try {
@@ -895,6 +939,60 @@ class Component extends DCLogic {
     } catch (e) {}
     return JSON.parse(JSON.stringify(this.state.data));
   }
+  // --- Portföy değeri geçmişi ---
+  fetchHistory() {
+    const self = this;
+    fetch('gold-history.json?_=' + Date.now(), { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : Promise.reject(new Error('yok')))
+      .then(j => { if (!self._dead && j && j.points && j.points.length) self.setState({ history: j.points }); })
+      .catch(() => {});
+  }
+  // Belirli bir tarihteki altın varlıkları: bugünkü portföyden, o tarihten SONRAKİ
+  // alım/satışları geri alarak bulunur.
+  holdingsAt(dateStr, pf, ledger) {
+    const h = {};
+    Object.keys(pf).forEach(t => { h[t] = +pf[t] || 0; });
+    ledger.forEach(p => {
+      if (!p || !p.date || p.date <= dateStr) return;
+      const amt = +p.amount || 0;
+      if (h[p.type] === undefined) h[p.type] = 0;
+      h[p.type] += (p.kind === 'satis' ? amt : -amt);   // sonraki işlemi geri al
+    });
+    return h;
+  }
+  // Seçili aralık için [{d, v}] serisi (v = o günkü altın portföy değeri, TL)
+  portfolioSeries(range) {
+    const pts = this.state.history;
+    if (!pts || !pts.length) return [];
+    const d = this.state.data, pf = d.gold.portfolio || {}, prices = d.gold.prices || {};
+    const ledger = (d.gold.purchases || []).slice();
+    const today = new Date();
+    const cut = new Date(today);
+    if (range === 'gun') cut.setDate(cut.getDate() - 30);
+    else if (range === 'hafta') cut.setDate(cut.getDate() - 182);
+    else if (range === 'ay') cut.setMonth(cut.getMonth() - 24);
+    else cut.setFullYear(cut.getFullYear() - 5);
+    const cutStr = cut.toISOString().slice(0, 10);
+
+    let sel = pts.filter(x => x[0] >= cutStr);
+    if (sel.length < 2) sel = pts.slice(-2);
+    // Örnekleme: haftalıkta hafta sonu, aylık/yıllıkta ay sonu noktası
+    if (range !== 'gun') {
+      const keyOf = x => (range === 'hafta'
+        ? (function () { const dt = new Date(x[0]); const on = new Date(Date.UTC(dt.getFullYear(), dt.getMonth(), dt.getDate())); const dn = on.getUTCDay() || 7; on.setUTCDate(on.getUTCDate() + 4 - dn); return on.getUTCFullYear() + '-' + Math.ceil(((on - new Date(Date.UTC(on.getUTCFullYear(), 0, 1))) / 86400000 + 1) / 7); })()
+        : x[0].slice(0, 7));
+      const last = {};
+      sel.forEach(x => { last[keyOf(x)] = x; });
+      sel = Object.keys(last).sort((a, b) => (last[a][0] < last[b][0] ? -1 : 1)).map(k => last[k]);
+    }
+    return sel.map(x => {
+      const h = this.holdingsAt(x[0], pf, ledger);
+      let v = 0;
+      Object.keys(h).forEach(t => { v += Math.max(0, h[t]) * (+prices[t] || 0); });
+      return { d: x[0], v: v * x[1] };   // x[1] = o günün endeksi
+    });
+  }
+
   // --- Yedekleme ---
   exportData() {
     try {
@@ -950,6 +1048,7 @@ class Component extends DCLogic {
     window.addEventListener('focus', this._onWake);
     window.addEventListener('pageshow', this._onWake);
     this.fetchPrices();
+    this.fetchHistory();
   }
   componentWillUnmount() {
     if (this._r) window.removeEventListener('resize', this._r);
@@ -1464,6 +1563,57 @@ class Component extends DCLogic {
       setRate: e => { const x = this.fresh(); x.fx[i].rate = this.num(e); this.save(x); }
     }));
     const gv = this.goldValue(), fv = this.fxValue(), pv = gv + fv, goal = +d.goal || 0;
+
+    // --- Portföy değeri grafiği (tek seri: altın portföyü, TL) ---
+    const cRange = this.state.chartRange || 'ay';
+    const cSeries = this.portfolioSeries(cRange);
+    const rangeDefs = [
+      { key: 'gun', label: 'Günlük' }, { key: 'hafta', label: 'Haftalık' },
+      { key: 'ay', label: 'Aylık' }, { key: 'yil', label: 'Yıllık' }
+    ];
+    const chartRanges = rangeDefs.map(r => ({
+      label: r.label,
+      bg: cRange === r.key ? '#eef0e4' : '#fffefb',
+      fg: cRange === r.key ? OLIVE_D : MUT,
+      bd: cRange === r.key ? OLIVE : '#ddd8ce',
+      go: () => this.setState({ chartRange: r.key, chartSel: -1 })
+    }));
+
+    const cn = cSeries.length;
+    let chartLine = '', chartArea = '', chartCols = [], chartEmpty = true;
+    let chartValue = '—', chartDate = '', chartChange = '', chartChangeColor = MUT, chartChangeBg = '#faf9f5';
+    let chartMax = '', chartMin = '', chartFirst = '', chartLast = '';
+    let selLeft = '0%', selTop = '0%', selDisplay = 'none';
+    if (cn >= 2) {
+      chartEmpty = false;
+      const vals = cSeries.map(p => p.v);
+      let vMax = Math.max.apply(null, vals), vMin = Math.min.apply(null, vals);
+      if (vMax === vMin) { vMax = vMax || 1; vMin = 0; }
+      const pad = (vMax - vMin) * 0.12;
+      const hi = vMax + pad, lo = Math.max(0, vMin - pad);
+      const X = i => (cn === 1 ? 0 : i / (cn - 1) * 100);
+      const Y = v => 100 - (v - lo) / ((hi - lo) || 1) * 100;
+      chartLine = cSeries.map((p, i) => X(i).toFixed(2) + ',' + Y(p.v).toFixed(2)).join(' ');
+      chartArea = 'M ' + chartLine.split(' ').join(' L ') + ' L 100,100 L 0,100 Z';
+      chartCols = cSeries.map((p, i) => ({
+        left: (X(i) - (100 / cn / 2)).toFixed(3) + '%',
+        width: (100 / cn).toFixed(3) + '%',
+        go: () => this.setState({ chartSel: i })
+      }));
+      const si = (this.state.chartSel >= 0 && this.state.chartSel < cn) ? this.state.chartSel : cn - 1;
+      const sp = cSeries[si];
+      chartValue = fmt(sp.v) + ' ₺';
+      chartDate = sp.d.split('-').reverse().join('.');
+      const base = cSeries[0].v;
+      const diff = sp.v - base, pct = base ? diff / base * 100 : 0;
+      chartChange = (diff >= 0 ? '+' : '−') + fmt(Math.abs(diff)) + ' ₺  (' + (diff >= 0 ? '+' : '−') + Math.abs(pct).toFixed(1).replace('.', ',') + '%)';
+      chartChangeColor = diff >= 0 ? OLIVE_D : RUST;
+      chartChangeBg = diff >= 0 ? '#eef0e4' : '#f8ece7';
+      chartMax = fmtK(vMax); chartMin = fmtK(vMin);
+      chartFirst = cSeries[0].d.slice(2).split('-').reverse().join('.');
+      chartLast = cSeries[cn - 1].d.slice(2).split('-').reverse().join('.');
+      selLeft = X(si).toFixed(2) + '%'; selTop = Y(sp.v).toFixed(2) + '%'; selDisplay = 'block';
+    }
     const invested = d.gold.purchases.reduce((s, p) => s + (p.kind === 'satis' ? -(+p.cost || 0) : (+p.cost || 0)), 0);
     const savingsKpis = [
       { label: 'Altın', value: fmt(gv) + ' ₺', color: GOLD, sub: fmt(d.gold.portfolio['Külçe Altın'] || 0) + ' gr külçe + ziynet' },
@@ -1669,6 +1819,11 @@ class Component extends DCLogic {
       cards: d.installmentCards, cardSummary: cardSummary, calendarRows: calendarRows, ganttGroups: ganttGroups, timelineTicks: ticks, nowLeft: (nowIdx - tlStart) / tlLen * 100, timelineSpan: shortLabel('2025-07') + ' → ' + shortLabel(key(tlStart + tlLen - 1)),
       hideDoneLabel: hideDone ? 'Bitenleri göster' : 'Bitenleri gizle', hideDoneBg: hideDone ? '#eef0e4' : '#faf9f5', hideDoneBd: hideDone ? '#5f6b3a' : '#ddd8ce', hideDoneFg: hideDone ? '#414a24' : '#55504a',
       hideDoneToggle: () => this.setState({ hideDone: !this.state.hideDone }),
+      chartRanges: chartRanges, chartLine: chartLine, chartArea: chartArea, chartCols: chartCols,
+      chartValue: chartValue, chartDate: chartDate, chartChange: chartChange, chartChangeColor: chartChangeColor, chartChangeBg: chartChangeBg,
+      chartMax: chartMax, chartMin: chartMin, chartFirst: chartFirst, chartLast: chartLast,
+      chartSelLeft: selLeft, chartSelTop: selTop, chartSelDisplay: selDisplay,
+      chartDisplay: chartEmpty ? 'none' : 'block', chartEmptyDisplay: chartEmpty ? 'block' : 'none',
       goldRows: goldRows, goldTotal: fmt(gv) + ' ₺', fxRows: fxRows, fxTotal: fmt(fv) + ' ₺', purchases: purchases, savingsKpis: savingsKpis,
       priceStatusText: this.state.priceStatus.text,
       priceDotColor: this.state.priceStatus.state === 'ok' ? OLIVE : this.state.priceStatus.state === 'loading' ? GOLD : '#c9c3b8',
