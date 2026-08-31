@@ -73,6 +73,7 @@
         </div>
 
         <div style="display:flex;align-items:center;gap:6px">
+          <button onClick="{{ syncNow }}" title="{{ syncTitle }}" style="border:1px solid {{ syncBd }};background:{{ syncBg }};border-radius:4px;padding:9px 11px;cursor:pointer;font:600 12px 'Plus Jakarta Sans';color:{{ syncFg }};white-space:nowrap">{{ syncText }}</button>
           <button onClick="{{ doExport }}" title="Verileri yedekle (dosya indir)" style="border:1px solid #ddd8ce;background:#fffefb;border-radius:4px;padding:9px 11px;cursor:pointer;font:600 12px 'Plus Jakarta Sans';color:#55504a" style-hover="background:#eef0e4;border-color:#5f6b3a">⤓ Yedekle</button>
           <label title="Yedekten geri yükle" style="border:1px solid #ddd8ce;background:#fffefb;border-radius:4px;padding:9px 11px;cursor:pointer;font:600 12px 'Plus Jakarta Sans';color:#55504a;white-space:nowrap" style-hover="background:#eef0e4;border-color:#5f6b3a">⤒ Geri yükle<input type="file" accept="application/json,.json" onChange="{{ doImport }}" style="display:none" /></label>
         </div>
@@ -829,6 +830,8 @@
 const KEY = 'aile-butce-v1';
 const VER = 4;
 const TX_START = '2026-09';
+const SYNC_API = 'api/data';   // Cloudflare Worker + KV (cihazlar arası eşitleme)
+const SYNC_STYLE = { ok: ['#eef0e4', '#5f6b3a', '#414a24'], busy: ['#fdf6e3', '#d9c58a', '#7a6320'], off: ['#fdecec', '#e2b4b4', '#9b2c2c'], idle: ['#fffefb', '#ddd8ce', '#8a837a'] };
 const MN = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
 const MS = ['OCA','ŞUB','MAR','NİS','MAY','HAZ','TEM','AĞU','EYL','EKİ','KAS','ARA'];
 // Gerçek takvim ayı (sabit değil) — ay değişince uygulama kendiliğinden ilerler
@@ -907,7 +910,7 @@ function seed() {
 class Component extends DCLogic {
   constructor(p) {
     super(p);
-    this.state = { data: this.load(), tab: 'ozet', month: TODAY, bp: this.bpOf(), sheet: null, form: {}, manual: false, openCat: null, hideDone: true, chartRange: 'ay', chartSel: -1, history: null, txInput: '', txBusy: false, txStatus: 'Metni yapıştır, Claude ayıklasın', txState: 'idle', priceStatus: { state: 'idle', text: 'Fiyatlar bekleniyor…' }, backupNote: '' };
+    this.state = { data: this.load(), tab: 'ozet', month: TODAY, bp: this.bpOf(), sheet: null, form: {}, manual: false, openCat: null, hideDone: true, chartRange: 'ay', chartSel: -1, history: null, txInput: '', txBusy: false, txStatus: 'Metni yapıştır, Claude ayıklasın', txState: 'idle', priceStatus: { state: 'idle', text: 'Fiyatlar bekleniyor…' }, backupNote: '', syncState: 'idle', syncText: '☁ …' };
   }
   load() {
     try {
@@ -929,7 +932,9 @@ class Component extends DCLogic {
     try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {}
     return d;
   }
-  save(d) { this.setState({ data: d }); try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {} }
+  save(d) { d._ts = Date.now(); this.setState({ data: d }); try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {} this.queuePush(); }
+  // Sunucudan gelen/birleştirilen veriyi yerele yazar (yeni gönderim tetiklemez)
+  saveLocal(d) { this.setState({ data: d }); try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {} }
   // Her yazma, diskteki EN GÜNCEL veriyi temel alır. Böylece eski anlık görüntü
   // tutan ikinci bir sekme/PWA, başka yerde yapılan kayıtları (örn. yeni ay) ezemez.
   fresh() {
@@ -939,6 +944,142 @@ class Component extends DCLogic {
     } catch (e) {}
     return JSON.parse(JSON.stringify(this.state.data));
   }
+
+  // ================= Cihazlar arası eşitleme (Cloudflare KV) =================
+  // Veri her cihazın tarayıcısında tutulmaya devam eder (çevrimdışı çalışır),
+  // ayrıca sunucudaki ortak kopyayla karşılıklı eşitlenir.
+  syncOn() { return !this._syncOff && typeof location !== 'undefined' && /^https?:$/.test(location.protocol); }
+  setSync(state, text) { if (!this._dead) this.setState({ syncState: state, syncText: text }); }
+  clock() { const d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+  strip(d) { const c = Object.assign({}, d); delete c._rev; return c; }
+  stable(v) {
+    const walk = x => {
+      if (Array.isArray(x)) return x.map(walk);
+      if (x && typeof x === 'object') { const o = {}; Object.keys(x).sort().forEach(k => { o[k] = walk(x[k]); }); return o; }
+      return x;
+    };
+    try { return JSON.stringify(walk(v)); } catch (e) { return ''; }
+  }
+  // Bu kopyada gerçekten veri var mı? (boş cihazın sunucudaki veriyi ezmemesi için)
+  hasContent(d) {
+    if (!d) return false;
+    if ((d.installments || []).length) return true;
+    if ((d.gold && d.gold.purchases || []).length) return true;
+    const ms = d.months || {}, keys = Object.keys(ms);
+    if (keys.length > 1) return true;
+    let sum = 0;
+    keys.forEach(mk => {
+      const m = ms[mk] || {};
+      Object.keys(m.income || {}).forEach(it => Object.keys(m.income[it] || {}).forEach(pp => { sum += Math.abs(+m.income[it][pp] || 0); }));
+      Object.keys(m.expenses || {}).forEach(k => { sum += Math.abs(+m.expenses[k] || 0); });
+      Object.keys(m.savings || {}).forEach(k => { sum += Math.abs(+m.savings[k] || 0); });
+      sum += Math.abs(+m.carryover || 0);
+    });
+    const pf = (d.gold && d.gold.portfolio) || {};
+    Object.keys(pf).forEach(t => { sum += Math.abs(+pf[t] || 0); });
+    return sum > 0;
+  }
+  // Birleştirme: yeni damgalı kopya esas alınır, ama diğer kopyada olup burada
+  // olmayan AYLAR / işlemler asla silinmez (veri kaybını önler).
+  mergeDocs(local, remote) {
+    const lt = +local._ts || 0, rt = +remote._ts || 0;
+    const base = rt > lt ? remote : local;
+    const other = rt > lt ? local : remote;
+    const out = JSON.parse(JSON.stringify(base));
+    out.months = out.months || {};
+    Object.keys(other.months || {}).forEach(mk => { if (!out.months[mk]) out.months[mk] = other.months[mk]; });
+    if (other.transactions) { out.transactions = out.transactions || {}; Object.keys(other.transactions).forEach(mk => { if (!out.transactions[mk]) out.transactions[mk] = other.transactions[mk]; }); }
+    if (other.confirmed) { out.confirmed = out.confirmed || {}; Object.keys(other.confirmed).forEach(mk => { if (!out.confirmed[mk]) out.confirmed[mk] = other.confirmed[mk]; }); }
+    out._ts = Math.max(lt, rt);
+    return out;
+  }
+  pullRemote() {
+    const self = this;
+    if (!this.syncOn()) return Promise.resolve();
+    this.setSync('busy', '⟳ eşitleniyor');
+    return fetch(SYNC_API + '?_=' + Date.now(), { cache: 'no-store', headers: { 'Accept': 'application/json' } })
+      .then(r => {
+        if (r.status === 404 || r.status === 405) { self._syncOff = true; throw new Error('yok'); }
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(j => {
+        if (self._dead) return;
+        const local = self.fresh();
+        if (!j || !j.data) {
+          self._ready = true;
+          if (self.hasContent(local)) return self.pushRemote();
+          self.setSync('ok', '☁ eşit');
+          return;
+        }
+        const remote = j.data;
+        // Bu cihaz hiç eşitlenmemiş ve boşsa: sunucudaki kopyayı olduğu gibi al.
+        // (Boş bir cihazın sunucudaki gerçek veriyi ezmesini engeller.)
+        const bos = !local._rev && !self.hasContent(local);
+        const merged = bos ? JSON.parse(JSON.stringify(remote)) : self.mergeDocs(local, remote);
+        merged._rev = +j.rev || 0;
+        self._ready = true;
+        if (self.stable(merged) !== self.stable(local)) self.saveLocal(merged);
+        if (self.stable(self.strip(merged)) !== self.stable(self.strip(remote))) return self.pushRemote();
+        self.setSync('ok', '☁ eşit · ' + self.clock());
+      })
+      .catch(() => {
+        self._ready = true;
+        if (self._syncOff) self.setSync('off', '☁ eşitleme kapalı');
+        else self.setSync('off', '⚠ çevrimdışı');
+      });
+  }
+  pushRemote(isRetry) {
+    const self = this;
+    if (!this.syncOn()) return Promise.resolve();
+    // İlk okuma bitmeden gönderme: aksi halde bu cihazın boş/eski kopyası
+    // sunucudaki veriyi ezebilir.
+    if (!this._ready) { clearTimeout(this._pushT); this._pushT = setTimeout(() => self.pushRemote(isRetry), 700); return Promise.resolve(); }
+    clearTimeout(this._pushT); this._pushT = null;
+    const sent = this.fresh();
+    this.setSync('busy', '⟳ eşitleniyor');
+    return fetch(SYNC_API, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rev: +sent._rev || 0, data: this.strip(sent) })
+    })
+      .then(r => {
+        if (r.status === 404 || r.status === 405) { self._syncOff = true; throw new Error('yok'); }
+        return r.json().then(j => ({ status: r.status, j: j }), () => ({ status: r.status, j: null }));
+      })
+      .then(res => {
+        if (self._dead) return;
+        if (res.status === 409 && res.j && res.j.data) {
+          const merged = self.mergeDocs(self.fresh(), res.j.data);
+          merged._rev = +res.j.rev || 0;
+          self.saveLocal(merged);
+          if (!isRetry) return self.pushRemote(true);
+          self.setSync('ok', '☁ eşit · ' + self.clock());
+          return;
+        }
+        if (res.status >= 400 || !res.j) throw new Error((res.j && res.j.error) || ('HTTP ' + res.status));
+        const cur = self.fresh();
+        cur._rev = +res.j.rev || 0;
+        self.saveLocal(cur);
+        // Gönderim uçarken yeni düzenleme olduysa tekrar gönder
+        if (self.stable(self.strip(cur)) !== self.stable(self.strip(sent))) { self.queuePush(); return; }
+        self.setSync('ok', '☁ eşit · ' + self.clock());
+      })
+      .catch(() => {
+        if (self._syncOff) { self.setSync('off', '☁ eşitleme kapalı'); return; }
+        self.setSync('off', '⚠ eşitlenmedi');
+        clearTimeout(self._pushT);
+        self._pushT = setTimeout(() => self.pushRemote(), 15000);
+      });
+  }
+  queuePush() {
+    if (!this.syncOn()) return;
+    this.setSync('busy', '⟳ kaydediliyor');
+    clearTimeout(this._pushT);
+    this._pushT = setTimeout(() => this.pushRemote(), 1200);
+  }
+  flushPush() { if (this._pushT) { clearTimeout(this._pushT); this._pushT = null; this.pushRemote(); } }
+  syncNow() { this.flushPush(); this.pullRemote(); }
   // --- Portföy değeri geçmişi ---
   fetchHistory() {
     const self = this;
@@ -1043,10 +1184,14 @@ class Component extends DCLogic {
     window.addEventListener('resize', this._r);
     this._onStorage = e => { if (!e || e.key === KEY) this.syncFromStorage(); };
     window.addEventListener('storage', this._onStorage);
-    this._onWake = () => { if (document.visibilityState === 'visible') this.syncFromStorage(); };
+    this._onWake = () => { if (document.visibilityState === 'visible') { this.syncFromStorage(); this.pullRemote(); } else { this.flushPush(); } };
     document.addEventListener('visibilitychange', this._onWake);
     window.addEventListener('focus', this._onWake);
     window.addEventListener('pageshow', this._onWake);
+    this._onLeave = () => this.flushPush();
+    window.addEventListener('beforeunload', this._onLeave);
+    this._syncTimer = setInterval(() => { if (document.visibilityState === 'visible') this.pullRemote(); }, 60000);
+    this.pullRemote();
     this.fetchPrices();
     this.fetchHistory();
   }
@@ -1054,6 +1199,9 @@ class Component extends DCLogic {
     if (this._r) window.removeEventListener('resize', this._r);
     if (this._onStorage) window.removeEventListener('storage', this._onStorage);
     if (this._onWake) { document.removeEventListener('visibilitychange', this._onWake); window.removeEventListener('focus', this._onWake); window.removeEventListener('pageshow', this._onWake); }
+    if (this._onLeave) window.removeEventListener('beforeunload', this._onLeave);
+    if (this._syncTimer) clearInterval(this._syncTimer);
+    if (this._pushT) clearTimeout(this._pushT);
     this._dead = true;
   }
 
@@ -1812,6 +1960,9 @@ class Component extends DCLogic {
       doExport: () => this.exportData(),
       doImport: e => { const f = e.target.files && e.target.files[0]; this.importData(f); e.target.value = ''; },
       backupNote: this.state.backupNote, backupNoteDisplay: this.state.backupNote ? 'block' : 'none',
+      syncText: this.state.syncText, syncNow: () => this.syncNow(),
+      syncTitle: this.state.syncState === 'off' ? 'Sunucuyla eşitlenemedi — veriler bu cihazda güvende. Yeniden denemek için tıkla.' : 'Veriler tüm cihazlarda ortak. Şimdi eşitlemek için tıkla.',
+      syncBg: SYNC_STYLE[this.state.syncState || 'idle'][0], syncBd: SYNC_STYLE[this.state.syncState || 'idle'][1], syncFg: SYNC_STYLE[this.state.syncState || 'idle'][2],
       materialize: () => { const cd = this.ensure(mk); this.save(cd); },
       kpis: kpis, forecast: forecast, balanceLine: balanceLine, zeroY: yOf(0).toFixed(2), forecastNotes: forecastNotes,
       catRows: catRows, people: people, personExpense: personExpense, endingSoon: endingSoon,

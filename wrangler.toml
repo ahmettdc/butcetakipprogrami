@@ -1,0 +1,16 @@
+name = "butcetakipprogrami"
+main = "_worker.js"
+compatibility_date = "2025-06-01"
+
+# Statik dosyalar (index.html, ikonlar, json'lar) buradan servis edilir.
+# /api/* istekleri statik dosyaya denk gelmediği için Worker'a düşer.
+[assets]
+directory = "."
+binding = "ASSETS"
+
+# --- Cihazlar arası eşitleme deposu ---
+# Cloudflare panelinde bir KV namespace oluşturup id'sini buraya yazınca
+# telefon / tablet / bilgisayar aynı veriyi görür.
+# [[kv_namespaces]]
+# binding = "BUTCE_KV"
+# id = "BURAYA_KV_NAMESPACE_ID"
