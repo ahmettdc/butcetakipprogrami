@@ -835,7 +835,9 @@ const SYNC_STYLE = { ok: ['#eef0e4', '#5f6b3a', '#414a24'], busy: ['#fdf6e3', '#
 const MN = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
 const MS = ['OCA','ŞUB','MAR','NİS','MAY','HAZ','TEM','AĞU','EYL','EKİ','KAS','ARA'];
 // Gerçek takvim ayı (sabit değil) — ay değişince uygulama kendiliğinden ilerler
-const TODAY = (function () { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); })();
+function curMonth() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
+// Cihazın takviminden okunur; ay değişince uygulama açıkken bile kendiliğinden güncellenir.
+let TODAY = curMonth();
 
 const todayISO = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 
@@ -1082,6 +1084,17 @@ class Component extends DCLogic {
   }
   flushPush() { if (this._pushT) { clearTimeout(this._pushT); this._pushT = null; this.pushRemote(); } }
   syncNow() { this.flushPush(); this.pullRemote(); }
+
+  // Ay değiştiyse (örn. 31 Ağustos gecesi) görünen ayı kendiliğinden ilerlet.
+  checkMonthRollover() {
+    const now = curMonth();
+    if (now === TODAY) return;
+    const prev = TODAY;
+    TODAY = now;
+    // Kullanıcı elle başka bir aya gitmediyse yeni aya geç
+    if (this.state.month === prev) this.setState({ month: now });
+    else this.setState({});
+  }
   // --- Portföy değeri geçmişi ---
   fetchHistory() {
     const self = this;
@@ -1186,13 +1199,13 @@ class Component extends DCLogic {
     window.addEventListener('resize', this._r);
     this._onStorage = e => { if (!e || e.key === KEY) this.syncFromStorage(); };
     window.addEventListener('storage', this._onStorage);
-    this._onWake = () => { if (document.visibilityState === 'visible') { this.syncFromStorage(); this.pullRemote(); } else { this.flushPush(); } };
+    this._onWake = () => { if (document.visibilityState === 'visible') { this.checkMonthRollover(); this.syncFromStorage(); this.pullRemote(); } else { this.flushPush(); } };
     document.addEventListener('visibilitychange', this._onWake);
     window.addEventListener('focus', this._onWake);
     window.addEventListener('pageshow', this._onWake);
     this._onLeave = () => this.flushPush();
     window.addEventListener('beforeunload', this._onLeave);
-    this._syncTimer = setInterval(() => { if (document.visibilityState === 'visible') this.pullRemote(); }, 60000);
+    this._syncTimer = setInterval(() => { this.checkMonthRollover(); if (document.visibilityState === 'visible') this.pullRemote(); }, 60000);
     this.pullRemote();
     this.fetchPrices();
     this.fetchHistory();
