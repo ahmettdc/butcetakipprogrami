@@ -999,7 +999,8 @@ class Component extends DCLogic {
     this.setSync('busy', '⟳ eşitleniyor');
     return fetch(SYNC_API + '?_=' + Date.now(), { cache: 'no-store', headers: { 'Accept': 'application/json' } })
       .then(r => {
-        if (r.status === 404 || r.status === 405) { self._syncOff = true; throw new Error('yok'); }
+        if (r.status === 404 || r.status === 405) { self._syncOff = true; self._offMsg = '☁ eşitleme kapalı'; throw new Error('yok'); }
+        if (r.status === 503) { self._syncOff = true; self._offMsg = '☁ ortak depo bağlı değil'; throw new Error('kv'); }
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.json();
       })
@@ -1025,7 +1026,7 @@ class Component extends DCLogic {
       })
       .catch(() => {
         self._ready = true;
-        if (self._syncOff) self.setSync('off', '☁ eşitleme kapalı');
+        if (self._syncOff) self.setSync('off', self._offMsg || '☁ eşitleme kapalı');
         else self.setSync('off', '⚠ çevrimdışı');
       });
   }
@@ -1044,7 +1045,8 @@ class Component extends DCLogic {
       body: JSON.stringify({ rev: +sent._rev || 0, data: this.strip(sent) })
     })
       .then(r => {
-        if (r.status === 404 || r.status === 405) { self._syncOff = true; throw new Error('yok'); }
+        if (r.status === 404 || r.status === 405) { self._syncOff = true; self._offMsg = '☁ eşitleme kapalı'; throw new Error('yok'); }
+        if (r.status === 503) { self._syncOff = true; self._offMsg = '☁ ortak depo bağlı değil'; throw new Error('kv'); }
         return r.json().then(j => ({ status: r.status, j: j }), () => ({ status: r.status, j: null }));
       })
       .then(res => {
@@ -1066,7 +1068,7 @@ class Component extends DCLogic {
         self.setSync('ok', '☁ eşit · ' + self.clock());
       })
       .catch(() => {
-        if (self._syncOff) { self.setSync('off', '☁ eşitleme kapalı'); return; }
+        if (self._syncOff) { self.setSync('off', self._offMsg || '☁ eşitleme kapalı'); return; }
         self.setSync('off', '⚠ eşitlenmedi');
         clearTimeout(self._pushT);
         self._pushT = setTimeout(() => self.pushRemote(), 15000);
