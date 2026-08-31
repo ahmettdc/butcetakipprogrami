@@ -9,8 +9,7 @@ directory = "."
 binding = "ASSETS"
 
 # --- Cihazlar arası eşitleme deposu ---
-# Cloudflare panelinde bir KV namespace oluşturup id'sini buraya yazınca
-# telefon / tablet / bilgisayar aynı veriyi görür.
-# [[kv_namespaces]]
-# binding = "BUTCE_KV"
-# id = "BURAYA_KV_NAMESPACE_ID"
+# Telefon / tablet / bilgisayar aynı veriyi buradan görür.
+[[kv_namespaces]]
+binding = "BUTCE_KV"
+id = "cea65d58336541adbe3946b9b7c419ce"
