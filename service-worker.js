@@ -1,7 +1,7 @@
 /* Aile Bütçesi — PWA service worker.
    Aynı origin: network-first (taze içerik), çevrimdışında önbellekten.
    Farklı origin (React/pdf.js/fontlar CDN): cache-first, çevrimdışı için saklanır. */
-var CACHE = "aile-butce-v7";
+var CACHE = "aile-butce-v8";
 var CORE = [
   "./",
   "./index.html",

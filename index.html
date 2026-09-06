@@ -978,6 +978,19 @@ class Component extends DCLogic {
   // Veri her cihazın tarayıcısında tutulmaya devam eder (çevrimdışı çalışır),
   // ayrıca sunucudaki ortak kopyayla karşılıklı eşitlenir.
   syncOn() { return !this._syncOff && typeof location !== 'undefined' && /^https?:$/.test(location.protocol); }
+  // Cloudflare Access oturumu bittiyse istek giriş sayfasına yönlendirilir.
+  // Bu başka bir alan adı olduğu için tarayıcı yanıtı okutmaz; "çevrimdışı" gibi görünür.
+  // Yönlendirmeyi (opaqueredirect) ya da JSON yerine HTML gelmesini yakalayıp doğru mesajı veriyoruz.
+  girisGerekli(r) {
+    const yonlendirme = !r || r.type === 'opaqueredirect' || r.status === 0 || (r.status >= 300 && r.status < 400);
+    const html = r && r.headers && (r.headers.get('content-type') || '').indexOf('json') < 0;
+    if (!yonlendirme && !html) return false;
+    this._syncOff = true;
+    this._needLogin = true;
+    this._offMsg = '🔒 Giriş gerekli · dokun';
+    return true;
+  }
+  girisYap() { try { location.href = location.origin + '/?giris=' + Date.now(); } catch (e) {} }
   setSync(state, text) { if (!this._dead) this.setState({ syncState: state, syncText: text }); }
   clock() { const d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
   strip(d) { const c = Object.assign({}, d); delete c._rev; return c; }
@@ -1032,8 +1045,9 @@ class Component extends DCLogic {
     const self = this;
     if (!this.syncOn()) return Promise.resolve();
     this.setSync('busy', '⟳ eşitleniyor');
-    return fetch(SYNC_API + '?_=' + Date.now(), { cache: 'no-store', headers: { 'Accept': 'application/json' } })
+    return fetch(SYNC_API + '?_=' + Date.now(), { cache: 'no-store', redirect: 'manual', headers: { 'Accept': 'application/json' } })
       .then(r => {
+        if (self.girisGerekli(r)) throw new Error('giris');
         if (r.status === 404 || r.status === 405) { self._syncOff = true; self._offMsg = '☁ eşitleme kapalı'; throw new Error('yok'); }
         if (r.status === 503) { self._syncOff = true; self._offMsg = '☁ ortak depo bağlı değil'; throw new Error('kv'); }
         if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -1077,9 +1091,11 @@ class Component extends DCLogic {
     return fetch(SYNC_API, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
+      redirect: 'manual',
       body: JSON.stringify({ rev: +sent._rev || 0, data: this.strip(sent) })
     })
       .then(r => {
+        if (self.girisGerekli(r)) throw new Error('giris');
         if (r.status === 404 || r.status === 405) { self._syncOff = true; self._offMsg = '☁ eşitleme kapalı'; throw new Error('yok'); }
         if (r.status === 503) { self._syncOff = true; self._offMsg = '☁ ortak depo bağlı değil'; throw new Error('kv'); }
         return r.json().then(j => ({ status: r.status, j: j }), () => ({ status: r.status, j: null }));
@@ -1116,7 +1132,12 @@ class Component extends DCLogic {
     this._pushT = setTimeout(() => this.pushRemote(), 1200);
   }
   flushPush() { if (this._pushT) { clearTimeout(this._pushT); this._pushT = null; this.pushRemote(); } }
-  syncNow() { this.flushPush(); this.pullRemote(); }
+  syncNow() {
+    if (this._needLogin) return this.girisYap();
+    this._syncOff = false; this._offMsg = '';     // elle denemede kapalı durumu sıfırla
+    this.flushPush();
+    this.pullRemote();
+  }
 
   // ---- Sunucudaki otomatik günlük yedekler ----
   openHistory() {
@@ -2063,7 +2084,7 @@ class Component extends DCLogic {
         return { title: baslik, sub: alt, restore: () => this.restoreSnapshot(sn.id, baslik) };
       }),
       syncText: this.state.syncText, syncNow: () => this.syncNow(),
-      syncTitle: this.state.syncState === 'off' ? 'Sunucuyla eşitlenemedi — veriler bu cihazda güvende. Yeniden denemek için tıkla.' : 'Veriler tüm cihazlarda ortak. Şimdi eşitlemek için tıkla.',
+      syncTitle: this._needLogin ? 'Cloudflare girişin sona ermiş. Dokun, giriş ekranına gidip tekrar gir; veriler bu cihazda güvende.' : this.state.syncState === 'off' ? 'Sunucuyla eşitlenemedi — veriler bu cihazda güvende. Yeniden denemek için tıkla.' : 'Veriler tüm cihazlarda ortak. Şimdi eşitlemek için tıkla.',
       syncBg: SYNC_STYLE[this.state.syncState || 'idle'][0], syncBd: SYNC_STYLE[this.state.syncState || 'idle'][1], syncFg: SYNC_STYLE[this.state.syncState || 'idle'][2],
       materialize: () => { const cd = this.ensure(mk); this.save(cd); },
       kpis: kpis, forecast: forecast, balanceLine: balanceLine, zeroY: yOf(0).toFixed(2), forecastNotes: forecastNotes,
