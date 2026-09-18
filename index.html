@@ -858,6 +858,8 @@ const VER = 4;
 const TX_START = '2026-09';
 const SYNC_API = 'api/data';   // Cloudflare Worker + KV (cihazlar arası eşitleme)
 const SNAP_API = 'api/snapshots';   // otomatik günlük yedekler
+// Eşitlemede ayrı ayrı yaşlandırılan bölümler (biri değişince diğeri ezilmesin)
+const SECTIONS = ['categories', 'people', 'incomeItems', 'savingsItems', 'installments', 'installmentCards', 'cardSubMap', 'gold', 'fx', 'goal', 'txMemory'];
 const SYNC_STYLE = { ok: ['#eef0e4', '#5f6b3a', '#414a24'], busy: ['#fdf6e3', '#d9c58a', '#7a6320'], off: ['#fdecec', '#e2b4b4', '#9b2c2c'], idle: ['#fffefb', '#ddd8ce', '#8a837a'] };
 const MN = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
 const MS = ['OCA','ŞUB','MAR','NİS','MAY','HAZ','TEM','AĞU','EYL','EKİ','KAS','ARA'];
@@ -961,7 +963,35 @@ class Component extends DCLogic {
     try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {}
     return d;
   }
-  save(d) { d._ts = Date.now(); this.setState({ data: d }); try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {} this.queuePush(); }
+  save(d) {
+    let onceki = null;
+    try { const s = localStorage.getItem(KEY); if (s) onceki = JSON.parse(s); } catch (e) {}
+    this.damgala(onceki, d);
+    d._ts = Date.now();
+    this.setState({ data: d });
+    try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {}
+    this.queuePush();
+  }
+  // Bu kayıtta HANGİ ayın / bölümün değiştiğini işaretler. Birleştirme bu damgalara
+  // bakar; böylece bir cihazda ağustosa dokunmak, öbür cihazda girilen eylülü ezmez.
+  damgala(onceki, yeni) {
+    const now = Date.now();
+    const sg = v => this.stable(v);
+    const o = onceki || {};
+    yeni._mts = Object.assign({}, o._mts);
+    yeni._txts = Object.assign({}, o._txts);
+    yeni._cfts = Object.assign({}, o._cfts);
+    yeni._sts = Object.assign({}, o._sts);
+    const harita = (alan, damga) => {
+      const a = o[alan] || {}, b = yeni[alan] || {};
+      Object.keys(b).forEach(k => { if (sg(a[k]) !== sg(b[k])) yeni[damga][k] = now; });
+      Object.keys(a).forEach(k => { if (!(k in b)) yeni[damga][k] = now; });
+    };
+    harita('months', '_mts');
+    harita('transactions', '_txts');
+    harita('confirmed', '_cfts');
+    SECTIONS.forEach(x => { if (sg(o[x]) !== sg(yeni[x])) yeni._sts[x] = now; });
+  }
   // Sunucudan gelen/birleştirilen veriyi yerele yazar (yeni gönderim tetiklemez)
   saveLocal(d) { this.setState({ data: d }); try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {} }
   // Her yazma, diskteki EN GÜNCEL veriyi temel alır. Böylece eski anlık görüntü
@@ -1025,18 +1055,47 @@ class Component extends DCLogic {
   // olmayan AYLAR / işlemler asla silinmez (veri kaybını önler).
   mergeDocs(local, remote) {
     const lt = +local._ts || 0, rt = +remote._ts || 0;
-    const base = rt > lt ? remote : local;
-    const other = rt > lt ? local : remote;
-    const out = JSON.parse(JSON.stringify(base));
-    // Bilinçli bir geri yükleme, diğer cihazın ondan ESKİ kopyasını geçersiz kılar:
-    // yoksa geri alınan aylar o cihazdan geri sızardı.
-    const geriYukleme = (+base._restore || 0) > (+other._ts || 0);
-    if (!geriYukleme) {
-      out.months = out.months || {};
-      Object.keys(other.months || {}).forEach(mk => { if (!out.months[mk]) out.months[mk] = other.months[mk]; });
-      if (other.transactions) { out.transactions = out.transactions || {}; Object.keys(other.transactions).forEach(mk => { if (!out.transactions[mk]) out.transactions[mk] = other.transactions[mk]; }); }
-      if (other.confirmed) { out.confirmed = out.confirmed || {}; Object.keys(other.confirmed).forEach(mk => { if (!out.confirmed[mk]) out.confirmed[mk] = other.confirmed[mk]; }); }
+    const yeni = rt > lt ? remote : local;     // genel olarak daha yeni kopya
+    const eski = rt > lt ? local : remote;
+    const out = JSON.parse(JSON.stringify(yeni));
+    const kopya = v => JSON.parse(JSON.stringify(v));
+
+    // Bilinçli bir geri yükleme, diğer cihazın ondan ESKİ kopyasını tümden geçersiz kılar.
+    if ((+yeni._restore || 0) > (+eski._ts || 0)) {
+      out._ts = Math.max(lt, rt);
+      out._restore = Math.max(+local._restore || 0, +remote._restore || 0);
+      return out;
     }
+
+    // Damga yoksa (eski sürümden gelen veri) belgenin kendi zamanı kullanılır.
+    const yeniFb = rt > lt ? rt : lt;
+    const eskiFb = rt > lt ? lt : rt;
+    const damga = (d, alan, k, fb) => (+((d[alan] || {})[k]) || 0) || fb;
+
+    // Ay / işlem / onay kayıtları: her anahtar KENDİ damgasıyla yarışır.
+    [['months', '_mts'], ['transactions', '_txts'], ['confirmed', '_cfts']].forEach(ikili => {
+      const alan = ikili[0], dmg = ikili[1];
+      const b = eski[alan];
+      if (!b) return;
+      out[alan] = out[alan] || {};
+      out[dmg] = Object.assign({}, out[dmg]);
+      Object.keys(b).forEach(k => {
+        const varMi = out[alan][k] !== undefined;
+        const tYeni = damga(yeni, dmg, k, varMi ? yeniFb : 0);
+        const tEski = damga(eski, dmg, k, eskiFb);
+        if (!varMi || tEski > tYeni) { out[alan][k] = kopya(b[k]); out[dmg][k] = tEski; }
+      });
+    });
+
+    // Taksitler, portföy, kategoriler gibi bölümler de ayrı ayrı yarışır.
+    out._sts = Object.assign({}, out._sts);
+    SECTIONS.forEach(x => {
+      if (eski[x] === undefined) return;
+      const tYeni = (+((yeni._sts || {})[x]) || 0) || yeniFb;
+      const tEski = (+((eski._sts || {})[x]) || 0) || eskiFb;
+      if (tEski > tYeni) { out[x] = kopya(eski[x]); out._sts[x] = tEski; }
+    });
+
     out._ts = Math.max(lt, rt);
     out._restore = Math.max(+local._restore || 0, +remote._restore || 0);
     return out;
