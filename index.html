@@ -836,6 +836,11 @@
           <button onClick="{{ closeHistory }}" style="margin-left:auto;border:0;background:transparent;cursor:pointer;font:400 20px 'Plus Jakarta Sans';color:#8a837a;line-height:1">×</button>
         </div>
         <div style="padding:16px 18px;display:flex;flex-direction:column;gap:10px">
+          <div style="border:1px solid #ddd8ce;background:#faf9f5;border-radius:4px;padding:12px 13px;display:flex;flex-direction:column;gap:8px">
+            <span style="font:700 13px 'Plus Jakarta Sans'">Doğru veri bu cihazda mı?</span>
+            <span style="font:500 11.5px/1.5 'Plus Jakarta Sans';color:#8a837a">{{ pushNote }}</span>
+            <button onClick="{{ pushLocal }}" style="align-self:flex-start;border:1px solid #414a24;background:#5f6b3a;color:#fffefb;border-radius:4px;padding:9px 13px;cursor:pointer;font:700 12px 'Plus Jakarta Sans'" style-hover="background:#414a24">⇧ Bu cihazdakini herkese yaz</button>
+          </div>
           <div style="font:500 11.5px/1.5 'Plus Jakarta Sans';color:#8a837a">{{ snapNote }}</div>
           <sc-for list="{{ snapItems }}" as="s" hint-placeholder-count="3">
             <div style="display:flex;align-items:center;gap:10px;border:1px solid #ece8e0;border-radius:4px;padding:11px 12px">
@@ -1217,6 +1222,27 @@ class Component extends DCLogic {
       .catch(() => { if (!self._dead) self.setState({ snaps: [], snapNote: 'Yedek listesi alınamadı. Eşitleme kapalıysa bu bölüm çalışmaz.' }); });
   }
   closeHistory() { this.setState({ snapOpen: false }); }
+  // "Doğrusu bende" düğmesi: bu cihazın kopyasını ortak kopyanın yerine koyar.
+  // Geri yükleme ile aynı ağırlıkta damgalanır ki diğer cihazlardan eski
+  // değerler geri sızmasın.
+  pushLocalAsTruth() {
+    const d = this.fresh();
+    const ay = Object.keys(d.months || {}).length;
+    if (!window.confirm('Bu cihazdaki veri ortak kopyanın yerine geçecek.\n\nBu cihaz: ' + ay + ' ay\n\nDiğer cihazlardaki farklı değerler bununla değiştirilecek. Devam edilsin mi?')) return;
+    const now = Date.now();
+    d._ts = now;
+    d._restore = now;
+    d._mts = {}; Object.keys(d.months || {}).forEach(k => { d._mts[k] = now; });
+    d._txts = {}; Object.keys(d.transactions || {}).forEach(k => { d._txts[k] = now; });
+    d._cfts = {}; Object.keys(d.confirmed || {}).forEach(k => { d._cfts[k] = now; });
+    d._sts = {}; SECTIONS.forEach(x => { d._sts[x] = now; });
+    this.saveLocal(d);
+    this.setState({ snapOpen: false, backupNote: 'Bu cihazdaki veri ortak kopyaya yazılıyor…' });
+    const self = this;
+    Promise.resolve(this.pushRemote()).then(function () {
+      if (!self._dead) self.setState({ backupNote: self._syncOff ? 'Yazılamadı — eşitleme kapalı' : 'Bu cihazdaki veri artık ortak kopya' });
+    });
+  }
   restoreSnapshot(id, baslik) {
     const self = this;
     this.setState({ snapNote: baslik + ' yedeği getiriliyor…' });
@@ -2135,6 +2161,8 @@ class Component extends DCLogic {
       backupNote: this.state.backupNote, backupNoteDisplay: this.state.backupNote ? 'block' : 'none',
       snapOpen: !!this.state.snapOpen, snapNote: this.state.snapNote,
       openHistory: () => this.openHistory(), closeHistory: () => this.setState({ snapOpen: false }),
+      pushLocal: () => this.pushLocalAsTruth(),
+      pushNote: 'Bir cihazda doğru, öbüründe yanlış veri varsa: doğru olanı açıp buna bas. Bu cihazdaki ' + Object.keys((this.state.data.months) || {}).length + ' ayın tamamı ortak kopyanın yerine geçer.',
       snapItems: (this.state.snaps || []).map(sn => {
         const g = String(sn.id || '').split('-');
         const baslik = g.length === 3 ? (+g[2]) + ' ' + MN[+g[1] - 1] + ' ' + g[0] + ' sabahı' : String(sn.id);
