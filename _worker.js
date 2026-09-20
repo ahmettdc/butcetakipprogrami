@@ -83,7 +83,7 @@ async function handleData(request, env) {
   if (!kv) return json({ error: "KV bagli degil (BUTCE_KV)" }, 503);
 
   if (request.method === "GET") {
-    const raw = await kv.get(KEY, { cacheTtl: 0 });
+    const raw = await kv.get(KEY, { cacheTtl: 30 });
     if (!raw) return json({ rev: 0, updatedAt: null, data: null });
     let cur;
     try { cur = JSON.parse(raw); } catch (e) { return json({ rev: 0, updatedAt: null, data: null }); }
@@ -96,7 +96,7 @@ async function handleData(request, env) {
     if (!body || typeof body !== "object" || !body.data || typeof body.data !== "object") {
       return json({ error: "data alani gerekli" }, 400);
     }
-    const raw = await kv.get(KEY, { cacheTtl: 0 });
+    const raw = await kv.get(KEY, { cacheTtl: 30 });
     let cur = null;
     if (raw) { try { cur = JSON.parse(raw); } catch (e) { cur = null; } }
     const curRev = cur && +cur.rev ? +cur.rev : 0;
@@ -127,11 +127,21 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    if (url.pathname === "/api/ping") {
-      return json({ ok: true, worker: true, kv: !!env.BUTCE_KV, time: new Date().toISOString() });
+    // /api/* icin HER durumda JSON don. Worker icinde beklenmedik bir hata olursa
+    // Cloudflare HTML hata sayfasi donduruyor ve istemci bunu "giris gerekli"
+    // saniyordu; artik hata da JSON olarak geliyor.
+    if (url.pathname.indexOf("/api/") === 0) {
+      try {
+        if (url.pathname === "/api/ping") {
+          return json({ ok: true, worker: true, kv: !!env.BUTCE_KV, time: new Date().toISOString() });
+        }
+        if (url.pathname === "/api/data") return await handleData(request, env);
+        if (url.pathname === "/api/snapshots") return await handleSnapshots(request, env);
+        return json({ error: "bilinmeyen uc nokta" }, 404);
+      } catch (e) {
+        return json({ error: "sunucu hatasi: " + (e && e.message ? e.message : String(e)) }, 500);
+      }
     }
-    if (url.pathname === "/api/data") return handleData(request, env);
-    if (url.pathname === "/api/snapshots") return handleSnapshots(request, env);
 
     if (env.ASSETS && env.ASSETS.fetch) return env.ASSETS.fetch(request);
     return new Response("Not found", { status: 404 });

@@ -1126,9 +1126,16 @@ class Component extends DCLogic {
   // Bu başka bir alan adı olduğu için tarayıcı yanıtı okutmaz; "çevrimdışı" gibi görünür.
   // Yönlendirmeyi (opaqueredirect) ya da JSON yerine HTML gelmesini yakalayıp doğru mesajı veriyoruz.
   girisGerekli(r) {
-    const yonlendirme = !r || r.type === 'opaqueredirect' || r.status === 0 || (r.status >= 300 && r.status < 400);
-    const html = r && r.headers && (r.headers.get('content-type') || '').indexOf('json') < 0;
-    if (!yonlendirme && !html) return false;
+    if (!r) return false;
+    const ct = (r.headers && r.headers.get('content-type')) || '';
+    const jsonMu = ct.indexOf('json') >= 0;
+    const yonlendirme = r.type === 'opaqueredirect' || r.status === 0 || (r.status >= 300 && r.status < 400);
+    // Access giriş ekranı: yönlendirme, ya da 2xx + JSON olmayan gövde.
+    // SUNUCU HATASI (5xx / HTML hata sayfası) giriş değildir — eskiden öyle sayılıp
+    // eşitleme tüm oturum boyunca kapatılıyor ve düğme sonsuz döngüye giriyordu.
+    const girisSayfasi = r.status >= 200 && r.status < 300 && !jsonMu;
+    this._sonHata = 'HTTP ' + r.status + (ct ? ' · ' + ct.split(';')[0] : '');
+    if (!yonlendirme && !girisSayfasi) return false;
     this._syncOff = true;
     this._needLogin = true;
     this._offMsg = '🔒 Giriş gerekli · dokun';
@@ -1374,10 +1381,17 @@ class Component extends DCLogic {
   }
   flushPush() { if (this._pushT) { clearTimeout(this._pushT); this._pushT = null; this._ready = true; this.pushRemote(); } }
   syncNow() {
-    if (this._needLogin) return this.girisYap();
-    this._syncOff = false; this._offMsg = '';     // elle denemede kapalı durumu sıfırla
-    this.flushPush();
-    this.pullRemote();
+    const oncedenGiris = !!this._needLogin;
+    const self = this;
+    // Durumu sıfırla ve ÖNCE tekrar dene. Sorun geçici bir sunucu hatasıysa
+    // giriş ekranına gitmeden kendiliğinden düzelir.
+    this._syncOff = false; this._needLogin = false; this._offMsg = '';
+    this.setSync('busy', '⟳ deneniyor');
+    return Promise.resolve(this.pullRemote()).then(function () {
+      if (self._dead) return;
+      if (self._needLogin) { if (oncedenGiris) self.girisYap(); return; }
+      if (!self._syncOff) self.flushPush();
+    });
   }
 
   // ---- Sunucudaki otomatik günlük yedekler ----
@@ -1587,7 +1601,13 @@ class Component extends DCLogic {
     this._onLeave = () => this.flushPush();
     window.addEventListener('beforeunload', this._onLeave);
     window.addEventListener('pagehide', this._onLeave);
-    this._syncTimer = setInterval(() => { this.checkMonthRollover(); if (document.visibilityState === 'visible') this.pullRemote(); }, 60000);
+    this._syncTimer = setInterval(() => {
+      this.checkMonthRollover();
+      if (document.visibilityState !== 'visible') return;
+      // Giriş dışındaki kapalı durumlar geçici sayılır; dakikada bir yeniden denenir.
+      if (this._syncOff && !this._needLogin) { this._syncOff = false; this._offMsg = ''; }
+      this.pullRemote();
+    }, 60000);
     this.pullRemote();
     this.fetchPrices();
     this.fetchHistory();
@@ -2392,7 +2412,7 @@ class Component extends DCLogic {
         return { title: baslik, sub: alt, restore: () => this.restoreSnapshot(sn.id, baslik) };
       }),
       syncText: this.state.syncText, syncNow: () => this.syncNow(),
-      syncTitle: this._needLogin ? 'Cloudflare girişin sona ermiş. Dokun, giriş ekranına gidip tekrar gir; veriler bu cihazda güvende.' : this.state.syncState === 'off' ? 'Sunucuyla eşitlenemedi — veriler bu cihazda güvende. Yeniden denemek için tıkla.' : 'Veriler tüm cihazlarda ortak. Şimdi eşitlemek için tıkla.',
+      syncTitle: this._needLogin ? ('Cloudflare girişin sona ermiş gibi görünüyor. Dokun: önce yeniden denenir, gerekirse giriş ekranına gidilir. Veriler bu cihazda güvende.' + (this._sonHata ? ' [' + this._sonHata + ']' : '')) : this.state.syncState === 'off' ? ('Sunucuyla eşitlenemedi — veriler bu cihazda güvende. Yeniden denemek için tıkla.' + (this._sonHata ? ' [' + this._sonHata + ']' : '')) : 'Veriler tüm cihazlarda ortak. Şimdi eşitlemek için tıkla.',
       syncBg: SYNC_STYLE[this.state.syncState || 'idle'][0], syncBd: SYNC_STYLE[this.state.syncState || 'idle'][1], syncFg: SYNC_STYLE[this.state.syncState || 'idle'][2],
       materialize: () => { const cd = this.ensure(mk); this.save(cd); },
       kpis: kpis, forecast: forecast, balanceLine: balanceLine, zeroY: yOf(0).toFixed(2), forecastNotes: forecastNotes,
