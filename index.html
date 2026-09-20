@@ -968,14 +968,46 @@ class Component extends DCLogic {
     try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {}
     return d;
   }
-  save(d) {
+  // arkaPlan=true: kullanıcı yazmadı, uygulama kendi kendine güncelledi (altın fiyatları).
+  // Böyle kayıtlar belgenin zamanını ilerletmez; yoksa sadece uygulamayı AÇMAK bile
+  // bu cihazı "en güncel" yapıp başka cihazda girilen veriyi ezebiliyordu.
+  save(d, arkaPlan) {
     let onceki = null;
     try { const s = localStorage.getItem(KEY); if (s) onceki = JSON.parse(s); } catch (e) {}
     this.damgala(onceki, d);
-    d._ts = Date.now();
+    const oncekiTs = +((onceki || {})._ts) || 0;
+    d._ts = arkaPlan && oncekiTs ? oncekiTs : Date.now();
     this.setState({ data: d });
     try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {}
     this.queuePush();
+  }
+  // Bir ayı yaprak alanlara düzleştirir: 'carryover', 'income|Temel Maaş|AHMET', 'expenses|Elektrik' ...
+  // Böylece aynı ay iki cihazda farklı SATIRLARDA değiştiğinde ikisi de korunabilir.
+  aylikYollar(m) {
+    const out = {};
+    let dizi = false;
+    const walk = (o, pre) => {
+      if (Array.isArray(o)) { dizi = true; return; }
+      if (o === null || typeof o !== 'object') { out[pre] = o; return; }
+      const ks = Object.keys(o);
+      if (!ks.length) { out[pre] = {}; return; }
+      ks.forEach(k => walk(o[k], pre ? pre + '|' + k : k));
+    };
+    walk(m, '');
+    return dizi ? null : out;     // dizi içeren ay: alan bazlı birleştirme yapma
+  }
+  yollardanAy(yollar) {
+    const m = {};
+    Object.keys(yollar).forEach(p => {
+      const par = p.split('|');
+      let cur = m;
+      for (let i = 0; i < par.length - 1; i++) {
+        if (!cur[par[i]] || typeof cur[par[i]] !== 'object') cur[par[i]] = {};
+        cur = cur[par[i]];
+      }
+      cur[par[par.length - 1]] = yollar[p];
+    });
+    return m;
   }
   // Bu kayıtta HANGİ ayın / bölümün değiştiğini işaretler. Birleştirme bu damgalara
   // bakar; böylece bir cihazda ağustosa dokunmak, öbür cihazda girilen eylülü ezmez.
@@ -983,19 +1015,43 @@ class Component extends DCLogic {
     const now = Date.now();
     const sg = v => this.stable(v);
     const o = onceki || {};
-    yeni._mts = Object.assign({}, o._mts);
-    yeni._txts = Object.assign({}, o._txts);
-    yeni._cfts = Object.assign({}, o._cfts);
-    yeni._sts = Object.assign({}, o._sts);
+    // Damgası olmayan anahtarlar için taban: ÖNCEKİ belgenin kendi zamanı.
+    // ("now" kullanmak, hiç dokunulmamış ayları taze göstererek başka cihazın
+    //  gerçek girişini ezmesine yol açıyordu.)
+    const taban = +o._ts || 0;
     const harita = (alan, damga) => {
-      const a = o[alan] || {}, b = yeni[alan] || {};
-      Object.keys(b).forEach(k => { if (sg(a[k]) !== sg(b[k])) yeni[damga][k] = now; });
-      Object.keys(a).forEach(k => { if (!(k in b)) yeni[damga][k] = now; });
+      const a = o[alan] || {}, b = yeni[alan] || {}, eskiD = o[damga] || {}, yeniD = {};
+      Object.keys(b).forEach(k => {
+        if (sg(a[k]) !== sg(b[k])) yeniD[k] = now;                 // bu kayıtta değişti
+        else yeniD[k] = (+eskiD[k] || 0) || taban;                 // değişmedi: eski damgası ya da belge zamanı
+      });
+      Object.keys(a).forEach(k => { if (!(k in b)) yeniD[k] = now; });  // silindi
+      yeni[damga] = yeniD;
     };
     harita('months', '_mts');
     harita('transactions', '_txts');
     harita('confirmed', '_cfts');
-    SECTIONS.forEach(x => { if (sg(o[x]) !== sg(yeni[x])) yeni._sts[x] = now; });
+
+    // Ay İÇİNDEKİ alanların damgaları
+    const eskiF = o._fts || {}, yeniF = {};
+    Object.keys(yeni.months || {}).forEach(mk => {
+      const yY = this.aylikYollar(yeni.months[mk]);
+      if (!yY) return;                                   // dizi içeriyorsa alan damgası tutma
+      const eY = (o.months || {})[mk] ? this.aylikYollar((o.months || {})[mk]) : null;
+      const eF = eskiF[mk] || {}, m = {};
+      Object.keys(yY).forEach(pp => {
+        const degisti = !eY || sg(eY[pp]) !== sg(yY[pp]);
+        m[pp] = degisti ? now : ((+eF[pp] || 0) || taban);
+      });
+      yeniF[mk] = m;
+    });
+    yeni._fts = yeniF;
+    const eskiS = o._sts || {}, yeniS = {};
+    SECTIONS.forEach(x => {
+      if (sg(o[x]) !== sg(yeni[x])) yeniS[x] = now;
+      else yeniS[x] = (+eskiS[x] || 0) || taban;
+    });
+    yeni._sts = yeniS;
   }
   // Sunucudan gelen/birleştirilen veriyi yerele yazar (yeni gönderim tetiklemez)
   saveLocal(d) { this.setState({ data: d }); try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {} }
@@ -1066,7 +1122,11 @@ class Component extends DCLogic {
     const kopya = v => JSON.parse(JSON.stringify(v));
 
     // Bilinçli bir geri yükleme, diğer cihazın ondan ESKİ kopyasını tümden geçersiz kılar.
-    if ((+yeni._restore || 0) > (+eski._ts || 0)) {
+    // Ama SADECE diğer taraf bu geri yüklemeyi henüz görmemişse. İki kopya da aynı
+    // _restore damgasını taşıyorsa kural tekrar tetiklenmemeli; yoksa aylar sonra bile
+    // yalnızca bir cihazda bulunan aylar her birleştirmede silinir.
+    const yeniR = +yeni._restore || 0, eskiR = +eski._restore || 0;
+    if (yeniR > eskiR && yeniR > (+eski._ts || 0)) {
       out._ts = Math.max(lt, rt);
       out._restore = Math.max(+local._restore || 0, +remote._restore || 0);
       return out;
@@ -1077,8 +1137,8 @@ class Component extends DCLogic {
     const eskiFb = rt > lt ? lt : rt;
     const damga = (d, alan, k, fb) => (+((d[alan] || {})[k]) || 0) || fb;
 
-    // Ay / işlem / onay kayıtları: her anahtar KENDİ damgasıyla yarışır.
-    [['months', '_mts'], ['transactions', '_txts'], ['confirmed', '_cfts']].forEach(ikili => {
+    // İşlem / onay kayıtları: her ay anahtarı KENDİ damgasıyla yarışır.
+    [['transactions', '_txts'], ['confirmed', '_cfts']].forEach(ikili => {
       const alan = ikili[0], dmg = ikili[1];
       const b = eski[alan];
       if (!b) return;
@@ -1090,6 +1150,44 @@ class Component extends DCLogic {
         const tEski = damga(eski, dmg, k, eskiFb);
         if (!varMi || tEski > tYeni) { out[alan][k] = kopya(b[k]); out[dmg][k] = tEski; }
       });
+    });
+
+    // Aylar: iki tarafta da varsa SATIR SATIR birleştirilir; böylece Ahmet'in
+    // tabletten girdiği satırla Elif'in telefondan girdiği satır birlikte yaşar.
+    out.months = out.months || {};
+    out._mts = Object.assign({}, out._mts);
+    out._fts = Object.assign({}, out._fts);
+    Object.keys(eski.months || {}).forEach(mk => {
+      const tEskiAy = damga(eski, '_mts', mk, eskiFb);
+      if (out.months[mk] === undefined) {                      // sadece diğer tarafta var: aynen al
+        out.months[mk] = kopya(eski.months[mk]);
+        out._mts[mk] = tEskiAy;
+        if ((eski._fts || {})[mk]) out._fts[mk] = kopya(eski._fts[mk]);
+        return;
+      }
+      const tYeniAy = damga(yeni, '_mts', mk, yeniFb);
+      const yY = this.aylikYollar(yeni.months[mk]);
+      const eY = this.aylikYollar(eski.months[mk]);
+      if (!yY || !eY) {                                        // düzleştirilemiyorsa ay bazına düş
+        if (tEskiAy > tYeniAy) { out.months[mk] = kopya(eski.months[mk]); out._mts[mk] = tEskiAy; }
+        return;
+      }
+      const yF = (yeni._fts || {})[mk] || {}, eF = (eski._fts || {})[mk] || {};
+      const sonuc = {}, sonF = {};
+      const tumu = {};
+      Object.keys(yY).forEach(pp => { tumu[pp] = 1; });
+      Object.keys(eY).forEach(pp => { tumu[pp] = 1; });
+      Object.keys(tumu).forEach(pp => {
+        const yVar = Object.prototype.hasOwnProperty.call(yY, pp);
+        const eVar = Object.prototype.hasOwnProperty.call(eY, pp);
+        const ty = yVar ? ((+yF[pp] || 0) || tYeniAy) : -1;
+        const te = eVar ? ((+eF[pp] || 0) || tEskiAy) : -1;
+        if (te > ty) { sonuc[pp] = eY[pp]; sonF[pp] = te; }
+        else { sonuc[pp] = yVar ? yY[pp] : eY[pp]; sonF[pp] = Math.max(ty, te, 0); }
+      });
+      out.months[mk] = this.yollardanAy(sonuc);
+      out._fts[mk] = sonF;
+      out._mts[mk] = Math.max(tYeniAy, tEskiAy);
     });
 
     // Taksitler, portföy, kategoriler gibi bölümler de ayrı ayrı yarışır.
@@ -1447,7 +1545,7 @@ class Component extends DCLogic {
         if (eur) { const f = x.fx.find(z => z.code === 'EUR'); if (f) f.rate = eur; }
         x.gold.updated = new Date().toISOString();
         x.gold.source = src.name;
-        self.save(x);
+        self.save(x, true);
         const t = new Date();
         self.setState({ priceStatus: { state: 'ok', text: 'Otomatik · ' + String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0') + ' · ' + src.name } });
       }).catch(() => tryNext(i + 1));
@@ -1464,7 +1562,7 @@ class Component extends DCLogic {
         if (+j.eur) { const f = x.fx.find(z => z.code === 'EUR'); if (f) f.rate = +j.eur; }
         x.gold.updated = j.updated || new Date().toISOString();
         x.gold.source = 'altinkaynak';
-        self.save(x);
+        self.save(x, true);
         self.setState({ priceStatus: { state: 'ok', text: 'altinkaynak · ' + (j.dateLabel || '') } });
       })
       .catch(() => { if (!self._dead) tryNext(0); });
