@@ -18,7 +18,12 @@ function json(obj, status) {
   });
 }
 
-function today() { return new Date().toISOString().slice(0, 10); }
+// Gun siniri Turkiye saatine gore (UTC+3). UTC kullanilinca "gunun ilk yazimi"
+// yerel saatle 03:00'te basliyor ve yedek etiketleri bir gun kayabiliyordu.
+function today() {
+  const d = new Date(Date.now() + 3 * 3600 * 1000);
+  return d.toISOString().slice(0, 10);
+}
 function ayCount(rec) {
   try { return Object.keys(rec.data.months).length; } catch (e) { return 0; }
 }
@@ -78,7 +83,7 @@ async function handleData(request, env) {
   if (!kv) return json({ error: "KV bagli degil (BUTCE_KV)" }, 503);
 
   if (request.method === "GET") {
-    const raw = await kv.get(KEY);
+    const raw = await kv.get(KEY, { cacheTtl: 0 });
     if (!raw) return json({ rev: 0, updatedAt: null, data: null });
     let cur;
     try { cur = JSON.parse(raw); } catch (e) { return json({ rev: 0, updatedAt: null, data: null }); }
@@ -91,7 +96,7 @@ async function handleData(request, env) {
     if (!body || typeof body !== "object" || !body.data || typeof body.data !== "object") {
       return json({ error: "data alani gerekli" }, 400);
     }
-    const raw = await kv.get(KEY);
+    const raw = await kv.get(KEY, { cacheTtl: 0 });
     let cur = null;
     if (raw) { try { cur = JSON.parse(raw); } catch (e) { cur = null; } }
     const curRev = cur && +cur.rev ? +cur.rev : 0;
