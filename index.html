@@ -731,7 +731,7 @@
                 </thead>
                 <tbody>
                   <sc-for list="{{ yearRows }}" as="r" hint-placeholder-count="14">
-                    <tr onClick="{{ r.go }}" style="cursor:pointer;background:{{ r.bg }}" style-hover="background:#f6f4ee">
+                    <tr onClick="{{ r.go }}" style="cursor:pointer;background:{{ r.bg }};opacity:{{ r.opacity }}" style-hover="background:#f6f4ee;opacity:1">
                       <td style="padding:8px 14px;border-bottom:1px solid #f4f1ea;font:600 12.5px 'Plus Jakarta Sans';white-space:nowrap;color:{{ r.fg }}">{{ r.label }}</td>
                       <td style="padding:8px 14px;border-bottom:1px solid #f4f1ea;font:500 10px 'Roboto Mono',monospace;text-transform:uppercase;letter-spacing:0.07em;color:{{ r.kindFg }}">{{ r.kind }}</td>
                       <td style="padding:8px 14px;border-bottom:1px solid #f4f1ea;text-align:right;font:500 12px 'Roboto Mono',monospace;color:#5f6b3a">{{ r.income }}</td>
@@ -2237,6 +2237,7 @@ class Component extends DCLogic {
         net: sgn(x.t.net), netColor: x.t.net < 0 ? RUST : INK,
         bg: x.k === mk ? '#f6f6ee' : x.t.actual ? 'transparent' : '#fdfcf9',
         fg: x.t.actual ? INK : MUT, barW: Math.max(0, Math.min(100, rate)), barBg: rate < 0 ? RUST : rate < 10 ? GOLD : OLIVE,
+        opacity: x.t.actual ? '1' : '0.45',
         go: () => this.setState({ month: x.k, tab: 'butce' })
       };
     });
